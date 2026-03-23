@@ -15,6 +15,16 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            
+            // --- NEW ROBUST COLUMNS START ---
+            // staff_no handles your BO1, BO2, ADMIN1 identifiers
+            $table->string('staff_no')->unique()->nullable(); 
+            // role differentiates between the two dimensions of users
+            $table->string('role')->default('officer'); 
+            // status helps if a staff member is no longer in charge
+            $table->boolean('is_active')->default(true);
+            // --- NEW ROBUST COLUMNS END ---
+
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();

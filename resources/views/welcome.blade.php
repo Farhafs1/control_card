@@ -26,7 +26,15 @@
                 <nav class="flex items-center justify-end gap-4">
                     @auth
                         <a
-                            href="{{ route('dashboard') }}"
+                            @auth
+                                @if(auth()->user()->role === 'admin')
+                                    <a href="{{ route('admin.dashboard') }}" class="...">Admin Dashboard</a>
+                                @else
+                                    <a href="{{ route('officer.dashboard') }}" class="...">Officer Dashboard</a>
+                                @endif
+                            @else
+                                <a href="{{ route('login') }}" class="...">Log in</a>
+                            @endauth
                             class="inline-block px-5 py-1.5 dark:text-[#EDEDEC] border-[#19140035] hover:border-[#1915014a] border text-[#1b1b18] dark:border-[#3E3E3A] dark:hover:border-[#62605b] rounded-sm text-sm leading-normal"
                         >
                             Dashboard
