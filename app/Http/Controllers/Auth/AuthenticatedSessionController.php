@@ -19,16 +19,29 @@ class AuthenticatedSessionController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        // Attempt login
         if (! Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
             throw ValidationException::withMessages([
                 'email' => __('auth.failed'),
             ]);
         }
 
+        // Check if user is active (since you have this logic in Fortify, let's keep it here too)
+        if (! Auth::user()->is_active) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'email' => 'Your account is deactivated. Please contact the administrator.',
+            ]);
+        }
+
         $request->session()->regenerate();
 
-        // Redirect to admin dashboard or home
-        return redirect()->intended('/admin/dashboard');
+        /**
+         * THE FIX:
+         * Redirect to '/dashboard' which is our Traffic Warden in web.php.
+         * We remove 'intended' to stop it from remembering old Admin pages.
+         */
+        return redirect('/dashboard');
     }
 
     /**

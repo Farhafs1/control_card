@@ -7,9 +7,9 @@ $classes = ($active)
 @endphp
 
 <a {{ $attributes->merge(['class' => $classes]) }}>
-    <div class="flex-shrink-0 text-current">
+    <!-- <div class="flex-shrink-0 text-current">
         {{-- If you use Heroicons or similar, they would go here. For now, a sleek dot --}}
         <div class="w-1.5 h-1.5 rounded-full {{ $active ? 'bg-white' : 'bg-emerald-500 group-hover:bg-emerald-400' }}"></div>
-    </div>
+    </div> -->
     <span class="font-medium text-sm tracking-wide">{{ $slot }}</span>
 </a>

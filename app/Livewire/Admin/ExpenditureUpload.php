@@ -15,22 +15,95 @@ class ExpenditureUpload extends Component
 {
     use WithFileUploads;
 
+    // CSV Upload Property
     public $csvFile;
 
-    /**
-     * Clear all expenditure data (Destructive)
-     */
-    public function truncateExpenditure()
-    {
-        DB::statement('PRAGMA foreign_keys = OFF;');
-        Release::truncate();
-        PendingVerification::truncate();
-        DB::statement('PRAGMA foreign_keys = ON;');
+    // Single Entry Properties
+    public $mda_id, $subhead_id, $release_date, $reference_no, $amount, $narration;
+    public $subheads = []; // Holds subheads for the selected MDA
 
-        session()->flash('message', 'Expenditure ledger and pending flags have been completely cleared.');
-        return redirect(request()->header('Referer'));
+    /**
+     * Listener for MDA selection change
+     */
+    public function updatedMdaId($value)
+    {
+        if ($value) {
+            $this->subheads = \App\Models\Subhead::where('mda_id', $value)
+                ->orderBy('subhead_code')
+                ->get();
+            
+            // Convert to a plain array to ensure JS can read it perfectly
+            $subheadArray = $this->subheads->map(function($sh) {
+                return [
+                    'id' => $sh->id,
+                    'text' => $sh->subhead_code . ' - ' . $sh->description
+                ];
+            })->toArray();
+
+            // Dispatch the data directly in the event
+            $this->dispatch('mda-updated', data: $subheadArray); 
+        } else {
+            $this->subheads = [];
+            $this->dispatch('mda-updated', data: []);
+        }
+
+        $this->subhead_id = null;
     }
 
+    /**
+     * Save a single manual entry
+     */
+    public function saveSingleEntry()
+    {
+        // TEMPORARY: Check if the data is actually arriving
+        //dd($this->all());
+        $this->validate([
+            'mda_id' => 'required|exists:mdas,id',
+            'subhead_id' => 'required|exists:subheads,id',
+            'release_date' => 'required|date',
+            'reference_no' => 'required|string|max:100',
+            'amount' => 'required|numeric|min:0',
+            'narration' => 'nullable|string|max:2000',
+        ]);
+
+        $subhead = Subhead::find($this->subhead_id);
+        $mda = Mda::find($this->mda_id);
+
+        $data = [
+            'mda_id'       => $mda->id,
+            'subhead_id'   => $subhead->id,
+            'mda_code'     => $mda->mda_code,
+            'subhead_code' => $subhead->subhead_code,
+            'release_date' => $this->release_date,
+            'reference_no' => trim($this->reference_no),
+            'amount'       => (float) $this->amount,
+            // Saves your manual note, or uses the description if you left it empty
+            'narration'    => trim($this->narration) ?: $subhead->description,
+        ];
+
+        // Check for duplicates (Composite Unique Index Check)
+        $isDuplicate = Release::where([
+            'mda_id'       => $data['mda_id'],
+            'subhead_id'   => $data['subhead_id'],
+            'release_date' => $data['release_date'],
+            'amount'       => $data['amount'],
+            'reference_no' => $data['reference_no']
+        ])->exists();
+
+        if ($isDuplicate) {
+            PendingVerification::create($data);
+            session()->flash('message', 'Duplicate detected: Entry moved to Verification Queue.');
+        } else {
+            Release::create($data);
+            session()->flash('message', 'Record successfully saved to Ledger.');
+        }
+
+        $this->reset(['mda_id', 'subhead_id', 'release_date', 'reference_no', 'amount', 'narration', 'subheads']);
+    }
+
+    /**
+     * Batch Upload Logic
+     */
     public function processImport()
     {
         $this->validate([
@@ -71,11 +144,10 @@ class ExpenditureUpload extends Component
 
                 if (empty($mdaCodeCSV) && empty($subheadCodeCSV)) continue;
 
-                // Lookup Subhead and MDA to get IDs
                 $subhead = Subhead::byCodes($mdaCodeCSV, $subheadCodeCSV)->first();
                 
                 if (!$subhead) {
-                    throw new \Exception("Budget line '$subheadCodeCSV' not found for MDA '$mdaCodeCSV' at row $currentRow. Please ensure MDAs and Subheads are registered first.");
+                    throw new \Exception("Budget line '$subheadCodeCSV' not found for MDA '$mdaCodeCSV' at row $currentRow.");
                 }
 
                 $rawAmount = (float) str_replace([',', ' ', '₦'], '', $record['amount'] ?? 0);
@@ -93,7 +165,6 @@ class ExpenditureUpload extends Component
 
                 $refNo = trim($record['reference_no'] ?? $record['reference'] ?? '');
 
-                // Check for duplicates in main ledger
                 $isDuplicate = Release::where([
                     'mda_id' => $subhead->mda_id,
                     'subhead_id' => $subhead->id,
@@ -130,7 +201,6 @@ class ExpenditureUpload extends Component
             
             session()->flash('message', $msg);
             $this->reset('csvFile');
-
             return redirect(request()->header('Referer'));
 
         } catch (\Exception $e) {
@@ -140,19 +210,29 @@ class ExpenditureUpload extends Component
         }
     }
 
+    public function truncateExpenditure()
+    {
+        DB::statement('PRAGMA foreign_keys = OFF;');
+        Release::truncate();
+        PendingVerification::truncate();
+        DB::statement('PRAGMA foreign_keys = ON;');
+
+        session()->flash('message', 'Expenditure ledger and pending flags have been completely cleared.');
+        return redirect(request()->header('Referer'));
+    }
+
     public function confirmItem($id)
     {
         $pending = PendingVerification::find($id);
 
         if ($pending) {
-            $mda = \App\Models\Mda::where('mda_code', $pending->mda_code)->first();
-            $subhead = \App\Models\Subhead::where('subhead_code', $pending->subhead_code)
-                                        ->where('mda_code', $pending->mda_code)
-                                        ->first();
+            $mda = Mda::where('mda_code', $pending->mda_code)->first();
+            $subhead = Subhead::where('subhead_code', $pending->subhead_code)
+                                ->where('mda_code', $pending->mda_code)
+                                ->first();
 
             try {
-                // Attempt to move to main ledger
-                \App\Models\Release::create([
+                Release::create([
                     'mda_id'         => $mda->id,
                     'subhead_id'     => $subhead?->id,
                     'mda_code'       => $pending->mda_code,
@@ -166,11 +246,9 @@ class ExpenditureUpload extends Component
                 $pending->delete();
                 session()->flash('message', 'Record confirmed and moved to ledger.');
 
-            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
-                // Instead of crashing, we leave it in pending but mark it
+            } catch (\Exception $e) {
                 $pending->update(['narration' => $pending->narration . ' [IDENTICAL DUPLICATE DETECTED]']);
-                
-                session()->flash('error', 'This record is an exact duplicate of an existing entry. It has been kept in the pending list for your analysis.');
+                session()->flash('error', 'This record is an exact duplicate of an existing entry.');
             }
         }
     }
@@ -186,9 +264,7 @@ class ExpenditureUpload extends Component
 
     public function render()
     {
-        /**
-         * AUTO-FIX: Link any existing records that are missing mda_id
-         */
+        // Periodic linking of orphaned records (if any)
         Release::whereNull('mda_id')->chunk(100, function($releases) {
             foreach($releases as $release) {
                 $mda = Mda::where('mda_code', $release->mda_code)->first();
@@ -199,6 +275,7 @@ class ExpenditureUpload extends Component
         });
 
         return view('livewire.admin.expenditure-upload', [
+            'mdas' => Mda::orderBy('mda_code')->get(),
             'recentReleases' => Release::with(['mda'])->latest()->take(10)->get(),
             'pendingItems' => PendingVerification::with(['mda'])->get()
         ])->layout('layouts.app');

@@ -3,88 +3,182 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Budget Control System | Katsina State</title>
+    <title>{{ $siteSettings->app_name ?? 'Budget Control System' }} | {{ $siteSettings->state_name ?? 'Katsina State' }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script> -->
 </head>
-<body class="bg-slate-100 font-sans text-slate-900">
+<body class="bg-slate-100 font-sans text-slate-900" 
+      x-data="{ 
+        mobileMenu: false, 
+        isMinimized: false,
+        toggle() {
+            if (window.innerWidth >= 1024) {
+                this.isMinimized = !this.isMinimized;
+            } else {
+                this.mobileMenu = !this.mobileMenu;
+            }
+        }
+      }">
+
     <div class="flex h-screen overflow-hidden">
         
-        <aside class="w-64 bg-[#064e3b] text-white flex-shrink-0 flex flex-col shadow-2xl z-10">
+        <div x-show="mobileMenu" @click="mobileMenu = false" class="fixed inset-0 z-20 bg-black/50 lg:hidden"></div>
+
+        <aside 
+            :class="{
+                'translate-x-0': mobileMenu, 
+                '-translate-x-full': !mobileMenu,
+                'w-64': !isMinimized,
+                'w-20': isMinimized
+            }"
+            class="fixed inset-y-0 left-0 z-30 bg-[#064e3b] text-white flex-shrink-0 flex flex-col shadow-2xl transition-all duration-300 lg:relative lg:translate-x-0">
+            
             <div class="p-6 border-b border-emerald-800/50">
-                <div class="flex flex-col items-center text-center space-y-3">
-                    <div class="w-16 h-16 bg-white rounded-full p-1 shadow-inner border-2 border-emerald-600">
-                        <div class="w-full h-full bg-emerald-50 rounded-full flex items-center justify-center">
-                            <span class="text-emerald-900 font-black text-xl tracking-tighter">KTS</span>
+                <div class="flex flex-col items-center text-center">
+                    <div :class="isMinimized ? 'w-10 h-10' : 'w-16 h-16'" class="bg-white rounded-full p-1 shadow-inner border-2 border-emerald-600 overflow-hidden transition-all duration-300">
+                        <div class="w-full h-full bg-emerald-50 rounded-full flex items-center justify-center overflow-hidden">
+                            @if($siteSettings && $siteSettings->logo_path)
+                                <img src="{{ Storage::url($siteSettings->logo_path) }}" class="w-full h-full object-cover">
+                            @else
+                                <span class="text-emerald-900 font-black text-xl tracking-tighter">KTS</span>
+                            @endif
                         </div>
                     </div>
-                    <div>
-                        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest leading-tight">Ministry of Budget &<br>Economic Planning</h2>
-                        <p class="text-[10px] text-emerald-100/50 mt-1 uppercase tracking-tighter font-semibold">Katsina State Govt.</p>
+                    <div x-show="!isMinimized" class="mt-3 transition-opacity duration-300">
+                        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest leading-tight">
+                            {{ $siteSettings->app_name ?? 'Ministry of Budget & Planning' }}
+                        </h2>
+                        <p class="text-[10px] text-emerald-100/50 mt-1 uppercase tracking-tighter font-semibold">
+                            {{ $siteSettings->state_name ?? 'Katsina State Govt.' }}
+                        </p>
                     </div>
                 </div>
             </div>
 
-            <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-1 custom-scrollbar">
-                <div class="px-3 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">General</div>
-                <x-nav-link href="{{ route('admin.dashboard') }}" :active="request()->routeIs('admin.dashboard')">Dashboard</x-nav-link>
-                <x-nav-link href="{{ route('admin.users') }}" :active="request()->routeIs('admin.users')">BO Management</x-nav-link>
-                <x-nav-link href="{{ route('admin.mdas') }}" :active="request()->routeIs('admin.mdas')">MDA Management</x-nav-link>
+            <nav class="flex-1 overflow-y-auto py-6 space-y-1 custom-scrollbar overflow-x-hidden">
+                @if(auth()->user()->role === 'admin')
+                    {{-- ADMIN NAVIGATION --}}
+                    <div x-show="!isMinimized" class="px-6 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Strategic Insights</div>
+                    <x-nav-link href="{{ route('admin.dashboard') }}" :active="request()->routeIs('admin.dashboard')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-home w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Dashboard</span>
+                    </x-nav-link>
+                    <x-nav-link href="{{ route('admin.analytics.expenditure') }}" :active="request()->routeIs('admin.analytics.expenditure')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-chart-line w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Release Analytics</span>
+                    </x-nav-link>
 
-                <div class="px-3 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Budget Hub</div>
-                <x-nav-link href="{{ route('admin.budget-upload') }}" :active="request()->routeIs('admin.budget-upload')">Upload Budget</x-nav-link>
-                <x-nav-link href="{{ route('admin.expenditure') }}" :active="request()->routeIs('admin.expenditure')">Expenditure Tracking</x-nav-link>
-                <x-nav-link href="{{ route('admin.subheads') }}" :active="request()->routeIs('admin.subheads')">Subheads</x-nav-link>
+                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Automated Intelligence</div>
+                    <x-nav-link href="{{ route('admin.data-extraction') }}" :active="request()->routeIs('admin.data-extraction')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-spider w-6 text-center text-emerald-400"></i> <span x-show="!isMinimized" class="ml-3">Data Extraction</span>
+                    </x-nav-link>
 
-                <div class="px-3 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Settings</div>
-                <x-nav-link href="#">System Logs</x-nav-link>
-                <x-nav-link href="#">Profile</x-nav-link>
+                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Budgetary Operations</div>
+                    <x-nav-link href="{{ route('admin.budget-upload') }}" :active="request()->routeIs('admin.budget-upload')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-upload w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Upload Budget</span>
+                    </x-nav-link>
+                    <x-nav-link href="{{ route('admin.subheads') }}" :active="request()->routeIs('admin.subheads*')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-list-ul w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Subhead Ledgers</span>
+                    </x-nav-link>
+                    <x-nav-link href="{{ route('admin.expenditure') }}" :active="request()->routeIs('admin.expenditure')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-exchange-alt w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Batch Tracking</span>
+                    </x-nav-link>
+
+                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Administration</div>
+                    <x-nav-link href="{{ route('admin.mdas') }}" :active="request()->routeIs('admin.mdas')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-building w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">MDA Management</span>
+                    </x-nav-link>
+                    <x-nav-link href="{{ route('admin.users') }}" :active="request()->routeIs('admin.users')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-users-cog w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">BO Management</span>
+                    </x-nav-link>
+
+                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">System</div>
+                    <x-nav-link href="{{ route('admin.system-logs') }}" :active="request()->routeIs('admin.system-logs')" wire:navigate class="flex items-center px-6"> 
+                        <i class="fas fa-history w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">System Logs</span>
+                    </x-nav-link>
+                    <x-nav-link href="{{ route('admin.settings') }}" :active="request()->routeIs('admin.settings')" wire:navigate class="flex items-center px-6"> 
+                        <i class="fas fa-user-shield w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Admin Control</span>
+                    </x-nav-link>
+                @else
+                    {{-- BUDGET OFFICER NAVIGATION --}}
+                    <div x-show="!isMinimized" class="px-6 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Main Menu</div>
+                    <x-nav-link href="{{ route('officer.dashboard') }}" :active="request()->routeIs('officer.dashboard')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-tachometer-alt w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">My Dashboard</span>
+                    </x-nav-link>
+
+                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Expenditures</div>
+                    <x-nav-link href="{{ route('officer.subheads') }}" :active="request()->routeIs('officer.subheads')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-plus w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Post Release</span>
+                    </x-nav-link>
+                    <x-nav-link href="{{ route('officer.recent-releases') }}" :active="request()->routeIs('officer.recent-releases')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-history w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Recent Postings</span>
+                    </x-nav-link>
+
+                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Account</div>
+                    <x-nav-link href="{{ route('officer.profile') }}" :active="request()->routeIs('officer.profile')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-user-cog w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">My Settings</span>
+                    </x-nav-link>
+                @endif
             </nav>
 
             <div class="p-4 bg-emerald-950/40 border-t border-emerald-800/40">
-                <div class="flex items-center space-x-3 mb-3 px-2">
-                    <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-xs font-bold text-white shadow-sm border border-emerald-500/50">
-                        {{ substr(auth()->user()->name, 0, 1) }}
+                <div class="flex items-center mb-3 px-2" :class="isMinimized ? 'justify-center' : 'space-x-3'">
+                    <div class="w-8 h-8 flex-shrink-0 rounded-lg bg-emerald-600 flex items-center justify-center text-xs font-bold text-white shadow-sm border border-emerald-500/50">
+                        {{ auth()->user()->initials() }}
                     </div>
-                    <div class="flex-1 min-w-0">
+                    <div x-show="!isMinimized" class="flex-1 min-w-0 transition-opacity">
                         <p class="text-xs font-bold text-white truncate">{{ auth()->user()->name }}</p>
-                        <p class="text-[10px] text-emerald-400 font-medium uppercase tracking-tighter">System Admin</p>
+                        <p class="text-[10px] text-emerald-400 font-medium uppercase tracking-tighter">
+                            {{ auth()->user()->role === 'admin' ? 'System Admin' : 'Budget Officer' }}
+                        </p>
                     </div>
                 </div>
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit" class="w-full flex items-center justify-center space-x-2 py-2 text-[11px] font-black uppercase tracking-widest bg-white/5 hover:bg-rose-500/20 text-emerald-100 hover:text-rose-200 rounded-xl transition duration-300 border border-white/10 group">
-                        <svg class="w-3 h-3 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <span>Sign Out</span>
-                    </button>
-                </form>
+                <a href="{{ route('logout.manual') }}" 
+                   class="w-full flex items-center justify-center py-2 text-[11px] font-black uppercase tracking-widest bg-rose-500/10 hover:bg-rose-500/20 text-rose-200 rounded-xl transition border border-rose-500/20 group">
+                    <i class="fas fa-power-off" :class="isMinimized ? '' : 'mr-2'"></i>
+                    <span x-show="!isMinimized">Sign Out</span>
+                </a>
             </div>
         </aside>
 
         <main class="flex-1 flex flex-col overflow-hidden">
-            <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shadow-sm z-0">
-                <div>
-                    <h1 class="text-xl font-black text-slate-800 tracking-tight uppercase">Budget Control System</h1>
-                    <p class="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Katsina State Goverment</p>
+            <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-10 shadow-sm z-10">
+                <div class="flex items-center">
+                    <button @click="toggle()" class="mr-4 p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-emerald-600 hover:text-white transition-all">
+                        <i class="fas fa-bars" x-show="!isMinimized"></i>
+                        <i class="fas fa-arrow-right" x-show="isMinimized"></i>
+                    </button>
+                    
+                    <div>
+                        <h1 class="text-sm lg:text-xl font-black text-slate-800 tracking-tight uppercase">
+                            {{ $siteSettings->app_name ?? 'Budget Control' }}
+                        </h1>
+                        <p class="text-[9px] lg:text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                            {{ $siteSettings->state_name ?? 'Katsina State Government' }}
+                        </p>
+                    </div>
                 </div>
                 
-                <div class="flex items-center space-x-6">
-                    <div class="text-right hidden md:block">
-                        <p class="text-xs font-bold text-slate-500">{{ now()->format('l, jS F Y') }}</p>
-                        <p class="text-[10px] text-emerald-600 font-bold uppercase tracking-tighter">Fiscal Year: {{ now()->year }}</p>
+                <div class="flex items-center space-x-3 lg:space-x-6">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-[10px] lg:text-xs font-bold text-slate-500">{{ now()->format('D, jS M Y') }}</p>
+                        <p class="text-[9px] lg:text-[10px] text-emerald-600 font-bold uppercase tracking-tighter">
+                            FY: {{ $siteSettings->fiscal_year ?? now()->year }}
+                        </p>
                     </div>
-                    <div class="h-8 w-[1px] bg-slate-200"></div>
+                    <div class="h-8 w-[1px] bg-slate-200 hidden sm:block"></div>
                     
                     <button class="relative p-2 text-slate-400 hover:text-emerald-600 transition group">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <i class="fas fa-bell text-lg lg:text-xl"></i>
                         <span class="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full border-2 border-white group-hover:animate-ping"></span>
                     </button>
                 </div>
             </header>
 
-            <div class="flex-1 overflow-y-auto p-10 bg-slate-100">
+            <div class="flex-1 overflow-y-auto p-4 lg:p-10 bg-slate-100">
                 <div class="max-w-7xl mx-auto">
                     {{ $slot }}
                 </div>
@@ -93,17 +187,10 @@
     </div>
 
     <style>
-        /* Modern Font Injection */
         .serif { font-family: 'Playfair Display', serif; }
-        
-        /* Custom Scrollbar Logic */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(16, 185, 129, 0.4); }
-
-        /* Navigation Link Component Styling (If not in a separate file) */
-        nav x-nav-link { transition: all 0.3s ease; }
     </style>
 </body>
 </html>

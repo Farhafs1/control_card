@@ -117,6 +117,64 @@ class ExpenditureTracking extends Component
         ]);
     }
 
+    // Add this method to your ExpenditureTracking class in App\Livewire\Admin
+
+    public function exportCSV()
+    {
+        $query = Release::with(['mda', 'subhead'])
+            ->when($this->search, function($q) {
+                $q->where(function($sub) {
+                    $sub->where('reference_no', 'like', '%' . $this->search . '%')
+                        ->orWhere('mda_code', 'like', '%' . $this->search . '%')
+                        ->orWhere('subhead_code', 'like', '%' . $this->search . '%')
+                        ->orWhere('narration', 'like', '%' . $this->search . '%')
+                        ->orWhereHas('mda', function($mdaQ) {
+                            $mdaQ->where('name', 'like', '%' . $this->search . '%');
+                        });
+                });
+            })
+            ->when($this->dateFrom, fn($q) => $q->whereDate('release_date', '>=', $this->dateFrom))
+            ->when($this->dateTo, fn($q) => $q->whereDate('release_date', '<=', $this->dateTo))
+            ->when($this->minAmount, fn($q) => $q->where('amount', '>=', $this->minAmount))
+            ->when($this->status !== 'all', function($q) {
+                $q->where('is_cancelled', $this->status === 'cancelled');
+            });
+
+        $releases = $query->latest('release_date')->get();
+
+        $fileName = 'expenditure_backup_' . now()->format('Y_m_d_His') . '.csv';
+        
+        $headers = [
+            "Content-type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename=$fileName",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        ];
+
+        $columns = ['mda_code', 'subhead_code', 'release_date', 'reference_no', 'amount', 'narration'];
+
+        $callback = function() use($releases, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+
+            foreach ($releases as $release) {
+                fputcsv($file, [
+                    $release->mda_code,
+                    $release->subhead_code,
+                    Carbon::parse($release->release_date)->format('Y-m-d'),
+                    $release->reference_no,
+                    $release->amount,
+                    $release->narration,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
     public function render()
     {
         $query = Release::with(['mda', 'subhead'])

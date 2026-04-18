@@ -9,6 +9,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Schema; // <--- ADD THIS LINE
 
 class BudgetUpload extends Component
 {
@@ -141,14 +142,14 @@ class BudgetUpload extends Component
                 // 3. Composite Upsert using the NEW Migration logic (mda_code + subhead_code)
                 Subhead::updateOrCreate(
                     [
-                        'mda_code' => $mdaCodeCSV, 
-                        'subhead_code' => $subheadCodeCSV
+                        'mda_code'     => $mdaCodeCSV, 
+                        'subhead_code' => $subheadCodeCSV,
+                        'description'  => trim($row[4]), // <--- MOVED HERE to identify unique rows
                     ],
                     [
-                        'mda_id' => $mda->id, // Maintain the relationship link
-                        'category_id' => $category->id,
-                        'description' => trim($row[4]),
-                        'approved_provision' => (float) str_replace(',', '', $row[5]),
+                        'mda_id'               => $mda->id, 
+                        'category_id'          => $category->id,
+                        'approved_provision'   => (float) str_replace(',', '', $row[5]),
                         'additional_provision' => (float) str_replace(',', '', $row[7] ?? 0),
                     ]
                 );

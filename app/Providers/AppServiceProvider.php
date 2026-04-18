@@ -3,10 +3,13 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Models\Setting; // Added this
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\View; // Added this
+use Illuminate\Support\Facades\Schema; // Added this
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -26,6 +29,21 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // --- GLOBAL SETTINGS LOADER ---
+        // This prevents the "Undefined variable $siteSettings" error in app.blade.php
+        if (Schema::hasTable('settings')) {
+            $siteSettings = Setting::first() ?? Setting::create([
+                'fiscal_year' => 2026,
+                'budget_status' => 'active',
+                'app_name' => 'Budget Management System',
+                'state_name' => 'Katsina State Government',
+                'currency_symbol' => '₦',
+                'allow_overspending' => false,
+            ]);
+            
+            View::share('siteSettings', $siteSettings);
+        }
 
         // --- AUTHENTICATION GATES ---
 

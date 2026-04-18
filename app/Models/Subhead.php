@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity; // 1. Import the Trait
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 class Subhead extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity; // 2. Add LogsActivity here
 
     protected $fillable = [
         'mda_id', 
@@ -32,7 +33,6 @@ class Subhead extends Model
      */
     public function getTotalBudgetAttribute()
     {
-        // Added float cast to ensure math works even if values are null
         return (float)$this->approved_provision + (float)$this->additional_provision;
     }
 
@@ -63,7 +63,6 @@ class Subhead extends Model
 
     /**
      * RELATIONSHIP: Each subhead belongs to a category.
-     * This is what drives the color coding.
      */
     public function category(): BelongsTo
     {
@@ -76,5 +75,22 @@ class Subhead extends Model
     public function releases(): HasMany
     {
         return $this->hasMany(Release::class);
+    }
+
+    /**
+     * CUSTOM LOG DESCRIPTION:
+     * Detailed tracking for budget provision changes.
+     */
+    protected static function logAction($model, $action)
+    {
+        $total = number_format($model->total_budget, 2);
+        
+        \App\Models\ActivityLog::create([
+            'user_id' => auth()->id() ?? 1,
+            'action' => $action,
+            'module' => 'Budget Subhead',
+            'description' => "{$action} Subhead {$model->subhead_code} ({$model->description}). Total Provision: ₦{$total}",
+            'ip_address' => request()->ip(),
+        ]);
     }
 }

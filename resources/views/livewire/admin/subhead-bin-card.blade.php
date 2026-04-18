@@ -101,7 +101,7 @@
                 <div class="flex items-center gap-2 mb-1">
                     <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Unspent Balance</p>
                     {{-- Percentage Badge --}}
-                    <span class="text-[8px] font-black px-1.5 py-0.5 rounded bg-white/10 {{ $statusColor }}">
+                    <span class="text-[28px] font-black px-1.5 py-0.5 rounded bg-white/10 {{ $statusColor }}">
                         {{ number_format($percentLeft, 1) }}%
                     </span>
                 </div>
@@ -149,8 +149,8 @@
                         @if(isset($editingReleaseId) && $editingReleaseId === $release->id)
                             {{-- EDIT MODE ROW --}}
                             <tr class="{{ $themeClasses['bg'] }} transition-colors">
-                                <td class="px-6 py-4 text-xs font-bold {{ $themeClasses['accent'] }} opacity-50">
-                                    {{ $releases->firstItem() + $index }}
+                                <td class="px-6 py-5 text-xs font-bold {{ $themeClasses['accent'] }}">
+                                    {{ $loop->iteration }}
                                 </td>
                                 <td class="px-2 py-2">
                                     <input type="date" wire:model="editForm.release_date" 
@@ -179,7 +179,7 @@
                         @else
                             {{-- VIEW MODE ROW --}}
                             <tr class="group {{ $themeClasses['bg-hover'] }} transition-colors {{ $release->is_cancelled ? 'bg-rose-50/30' : '' }}">
-                                <td class="px-6 py-5 text-xs font-bold {{ $themeClasses['accent'] }}">{{ $releases->firstItem() + $index }}</td>
+                                <td class="px-6 py-5 text-xs font-bold {{ $themeClasses['accent'] }}">{{ $loop->iteration }}</td>
                                 <td class="px-6 py-5 text-xs font-medium {{ $themeClasses['accent'] }}">{{ \Carbon\Carbon::parse($release->release_date)->format('d/m/Y') }}</td>
                                 <td class="px-6 py-5 text-xs font-bold {{ $themeClasses['accent'] }} uppercase">{{ $release->reference_no }}</td>
                                 <td class="px-6 py-5 text-right text-xs font-bold {{ $release->is_cancelled ? 'text-slate-300 line-through' : $themeClasses['accent'] }}">

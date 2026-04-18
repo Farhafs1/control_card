@@ -16,11 +16,10 @@
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h2 class="serif text-3xl text-slate-900 uppercase">Release Management</h2>
-                <p class="text-[10px] font-black text-emerald-800 uppercase tracking-widest mt-1">Batch Upload & Record Control</p>
+                <p class="text-[10px] font-black text-emerald-800 uppercase tracking-widest mt-1">Record Control & Verification</p>
             </div>
             
             <div class="flex items-center gap-3">
-                {{-- Aesthetic Truncate Button --}}
                 <button 
                     wire:confirm="CRITICAL: This will permanently delete ALL expenditure records and pending flags. Proceed?"
                     wire:click="truncateExpenditure" 
@@ -38,59 +37,111 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {{-- Left: Upload Form --}}
-            <div class="lg:col-span-1">
-                <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                    <form wire:submit.prevent="processImport" class="space-y-6">
-                        <div 
-                            x-data="{ isUploading: false, progress: 0 }" 
-                            x-on:livewire-upload-start="isUploading = true"
-                            x-on:livewire-upload-finish="isUploading = false"
-                            x-on:livewire-upload-error="isUploading = false"
-                            x-on:livewire-upload-progress="progress = $event.detail.progress"
-                        >
-                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 block">Select Expenditure CSV (DD/MM/YYYY)</label>
-                            
-                            <div class="relative group">
-                                <input type="file" wire:model="csvFile" class="hidden" id="csv_input">
-                                <label for="csv_input" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-3xl p-8 cursor-pointer group-hover:border-emerald-500 transition-all bg-slate-50/50">
-                                    <svg class="w-8 h-8 text-slate-300 group-hover:text-emerald-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-width="2"/></svg>
-                                    <span class="text-[10px] font-black text-slate-500 uppercase">{{ $csvFile ? $csvFile->getClientOriginalName() : 'Choose File' }}</span>
-                                </label>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {{-- Manual Entry Form --}}
+            <div class="lg:col-span-5">
+                <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm h-full">
+                    <h3 class="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                        Single Record Entry
+                    </h3>
+                    
+                    <form wire:submit.prevent="saveSingleEntry" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            {{-- Searchable MDA --}}
+                            <div class="col-span-2" wire:ignore>
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Organization (MDA)</label>
+                                <select id="mda-select" wire:model.live="mda_id" class="w-full bg-slate-50 border-none rounded-xl text-[11px] font-bold py-3">
+                                    <option value="">Search MDA Name or Code...</option>
+                                    @foreach($mdas as $mda)
+                                        <option value="{{ $mda->id }}">
+                                            {{ $mda->mda_code }} - {{ $mda->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            @error('mda_id') <p class="text-rose-500 text-[9px] font-black mt-1">{{ $message }}</p> @enderror
+
+                            {{-- Searchable Subhead (Filtered by MDA) --}}
+                            <div class="col-span-2">
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Budget Line (Subhead)</label>
+                                <div wire:ignore>
+                                    <select id="subhead-select" class="w-full bg-slate-50 border-none rounded-xl text-[11px] font-bold py-3">
+                                        <option value="">Select Subhead...</option>
+                                    </select>
+                                </div>
+                                @error('subhead_id') <p class="text-rose-500 text-[9px] font-black mt-1">{{ $message }}</p> @enderror
                             </div>
 
-                            <div x-show="isUploading" class="mt-4">
-                                <div class="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                                    <div class="h-full bg-emerald-500 transition-all duration-200" :style="`width: ${progress}%`"></div>
-                                </div>
+                            {{-- Transaction Details --}}
+                            <div>
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Release Date</label>
+                                <input type="date" wire:model="release_date" class="w-full bg-slate-50 border-none rounded-xl text-[11px] font-bold py-3">
+                            </div>
+                            <div>
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Ref Number</label>
+                                <input type="text" wire:model="reference_no" class="w-full bg-slate-50 border-none rounded-xl text-[11px] font-bold py-3">
+                            </div>
+
+                            <div class="col-span-2">
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Amount (₦)</label>
+                                <input type="number" step="0.01" wire:model="amount" class="w-full bg-slate-50 border-none rounded-xl text-[13px] font-black py-3 text-emerald-800">
+                            </div>
+
+                            <div class="col-span-2">
+                                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Narration</label>
+                                <textarea wire:model="narration" rows="2" class="w-full bg-slate-50 border-none rounded-xl text-[11px] font-bold py-3" placeholder="Enter notes for this specific release..."></textarea>
                             </div>
                         </div>
 
-                        @error('csvFile') <span class="text-rose-500 text-[10px] font-black uppercase tracking-tight">{{ $message }}</span> @enderror
-
-                        <button type="submit" wire:loading.attr="disabled" class="w-full py-4 bg-emerald-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-900/20 disabled:opacity-50">
-                            <span wire:loading.remove>Process Batch Upload</span>
-                            <span wire:loading>Processing...</span>
+                        <button type="submit" 
+                                wire:loading.attr="disabled" 
+                                wire:target="saveSingleEntry" 
+                                class="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">
+                            <span wire:loading.remove wire:target="saveSingleEntry">Save Record to Ledger</span>
+                            <span wire:loading wire:target="saveSingleEntry">Saving Record...</span>
                         </button>
-                        
-                        <a href="{{ route('admin.expenditure.template') }}" class="block text-center text-[9px] font-black text-slate-400 uppercase hover:text-emerald-700 transition-colors">
-                            Download Formatting Guide
-                        </a>
                     </form>
                 </div>
             </div>
+            {{-- Batch Upload & Recent Activity --}}
+            <div class="lg:col-span-7 space-y-6">
+                {{-- CSV Section --}}
+                <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                    <form wire:submit.prevent="processImport" class="flex flex-col md:flex-row items-end gap-4">
+                        <div class="flex-1 w-full" 
+                            x-data="{ isUploading: false, progress: 0 }" 
+                            x-on:livewire-upload-start="isUploading = true"
+                            x-on:livewire-upload-finish="isUploading = false"
+                            x-on:livewire-upload-progress="progress = $event.detail.progress"
+                        >
+                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Batch CSV Import</label>
+                            <div class="relative group">
+                                <input type="file" wire:model="csvFile" class="hidden" id="csv_input">
+                                <label for="csv_input" class="flex items-center gap-3 border-2 border-dashed border-slate-200 rounded-2xl p-3 cursor-pointer group-hover:border-emerald-500 transition-all bg-slate-50/50">
+                                    <svg class="w-5 h-5 text-slate-300 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-width="2"/></svg>
+                                    <span class="text-[10px] font-black text-slate-500 uppercase">{{ $csvFile ? $csvFile->getClientOriginalName() : 'Choose CSV File' }}</span>
+                                </label>
+                            </div>
+                        </div>
 
-            {{-- Right: Recent Transactions --}}
-            <div class="lg:col-span-2">
+                        <button type="submit" wire:loading.attr="disabled" wire:target="processImport" class="px-8 py-4 bg-emerald-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50 whitespace-nowrap">
+                            <span wire:loading.remove wire:target="processImport">Process Batch</span>
+                            <span wire:loading wire:target="processImport">Processing...</span>
+                        </button>
+                    </form>
+                    @error('csvFile') <p class="mt-2 text-rose-500 text-[9px] font-black uppercase">{{ $message }}</p> @enderror
+                </div>
+
+                {{-- Recent Table --}}
                 <div class="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                    <div class="p-6 border-b border-slate-50 bg-slate-50/50">
-                        <h3 class="text-[10px] font-black text-slate-900 uppercase tracking-widest">Confirmed Transactions</h3>
+                    <div class="p-6 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+                        <h3 class="text-[10px] font-black text-slate-900 uppercase tracking-widest">Recent Confirmed Transactions</h3>
                     </div>
                     <table class="w-full text-left">
                         <thead>
                             <tr class="border-b border-slate-50">
-                                <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase">Ref / Date (DD/MM)</th>
+                                <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase">Ref / Date</th>
                                 <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase">Amount</th>
                                 <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase text-right">Action</th>
                             </tr>
@@ -107,9 +158,9 @@
                                 </td>
                                 <td class="px-6 py-4 text-right">
                                     <button 
-                                        wire:confirm="Are you sure? This will permanently delete this release."
+                                        wire:confirm="Delete this release?"
                                         wire:click="deleteRelease({{ $release->id }})" 
-                                        class="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                        class="p-2 text-rose-400 hover:text-rose-600 transition-colors"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2"/></svg>
                                     </button>
@@ -117,7 +168,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="3" class="px-6 py-10 text-center text-[10px] font-black text-slate-300 uppercase italic">No records in ledger</td>
+                                <td colspan="3" class="px-6 py-10 text-center text-[10px] font-black text-slate-300 uppercase">No recent records</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -126,7 +177,7 @@
             </div>
         </div>
 
-        {{-- Redesigned Pending/Duplicates Section --}}
+        {{-- Verification Queue (Stays Full Width) --}}
         @if($pendingItems->isNotEmpty())
         <div class="mt-8 bg-white rounded-[2.5rem] border-2 border-amber-100 shadow-xl shadow-amber-900/5 overflow-hidden">
             <div class="p-6 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
@@ -143,12 +194,11 @@
             </div>
             
             <div class="overflow-x-auto">
-                <table class="w-full text-left border-separate border-spacing-0">
+                <table class="w-full text-left">
                     <thead>
                         <tr class="bg-slate-50/50">
-                            <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Release Date</th>
-                            <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Identifier (MDA/Sub)</th>
-                            <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref No</th>
+                            <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                            <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">MDA/Sub</th>
                             <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                             <th class="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Control</th>
                         </tr>
@@ -163,14 +213,13 @@
                                 <div class="text-[10px] font-black text-slate-900">{{ $item->mda_code }}</div>
                                 <div class="text-[9px] font-bold text-slate-400">{{ $item->subhead_code }}</div>
                             </td>
-                            <td class="px-6 py-4 text-[11px] font-bold text-slate-700">{{ $item->reference_no }}</td>
                             <td class="px-6 py-4 text-right font-mono text-[11px] font-black text-rose-600">
                                 ₦{{ number_format($item->amount, 2) }}
                             </td>
                             <td class="px-6 py-4">
                                 <div class="flex items-center justify-center gap-2">
-                                    <button wire:click="confirmItem({{ $item->id }})" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all">Approve</button>
-                                    <button wire:click="discardItem({{ $item->id }})" class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all">Discard</button>
+                                    <button wire:click="confirmItem({{ $item->id }})" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all">Approve Duplicate</button>
+                                    <button wire:click="discardItem({{ $item->id }})" class="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all">Discard</button>
                                 </div>
                             </td>
                         </tr>
@@ -181,4 +230,53 @@
         </div>
         @endif
     </div>
-</div> {{-- END ROOT ELEMENT --}}
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+
+    <script>
+        document.addEventListener('livewire:initialized', () => {
+            // MDA Initialization
+            const mdaSelect = new TomSelect("#mda-select", {
+                create: false,
+                onChange: function(value) {
+                    @this.set('mda_id', value);
+                }
+            });
+
+            // Subhead Initialization
+            const subheadSelect = new TomSelect("#subhead-select", {
+                valueField: 'id',
+                labelField: 'text',
+                searchField: 'text',
+                options: [],
+                placeholder: 'Select Subhead...',
+                allowEmptyOption: true,
+                onChange: function(value) {
+                    @this.set('subhead_id', value);
+                }
+            });
+
+            // Catch the event and the DATA package
+            @this.on('mda-updated', (event) => {
+                // Livewire 3 event data access
+                const subheads = event.data || event[0].data;
+                
+                console.log('Syncing subheads to UI...', subheads);
+
+                subheadSelect.clear();
+                subheadSelect.clearOptions();
+
+                if (subheads && subheads.length > 0) {
+                    subheadSelect.addOptions(subheads);
+                    // Force the dropdown to recognize the new items
+                    subheadSelect.refreshOptions(false);
+                }
+            });
+        });
+    </script>
+
+
+
+
+</div>
+

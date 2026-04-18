@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Fortify;
+// IMPORTANT: Use the Contract namespace to avoid the "Not an interface" error
+use Laravel\Fortify\Contracts\LoginResponse; 
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -32,8 +34,19 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureViews();
         $this->configureRateLimiting();
 
+        // 1. FORCE REDIRECT LOGIC
+        // We bind the Contract to a new anonymous class. 
+        // This clears the "intended" admin URL from the session.
+        $this->app->singleton(LoginResponse::class, function () {
+            return new class implements LoginResponse {
+                public function toResponse($request)
+                {
+                    return redirect()->route('dashboard');
+                }
+            };
+        });
+
         // CUSTOM AUTHENTICATION LOGIC
-        // This ensures we check the 'is_active' status during login
         Fortify::authenticateUsing(function (Request $request) {
             $user = User::where('email', $request->email)->first();
 

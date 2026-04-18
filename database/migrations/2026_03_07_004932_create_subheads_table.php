@@ -16,7 +16,6 @@ return new class extends Migration
             $table->foreignId('category_id')->constrained()->onDelete('cascade');
             
             // DATA COLUMNS
-            // Added mda_code here so it's searchable directly
             $table->string('mda_code'); 
             $table->string('subhead_code'); 
             $table->text('description'); 
@@ -27,10 +26,14 @@ return new class extends Migration
             
             $table->timestamps();
 
-            // THE FIX: Composite Unique Constraint
-            // This ensures that the combination of MDA Code + Subhead Code is unique.
-            // This is safer for budget tracking than using mda_id.
-            $table->unique(['mda_code', 'subhead_code']);
+            /**
+             * THE FIX: 
+             * We removed ['mda_code', 'subhead_code'] unique constraint.
+             * We now use Description as part of the unique check. 
+             * This allows KASEDA to have subhead 22020712 multiple times 
+             * as long as the descriptions are different.
+             */
+            $table->unique(['mda_code', 'subhead_code', 'description'], 'unique_budget_line');
         });
     }
 

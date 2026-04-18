@@ -5,13 +5,11 @@ namespace App\Livewire\Admin;
 use App\Models\Subhead;
 use App\Models\Release;
 use Livewire\Component;
-use Livewire\WithPagination;
 use Illuminate\Support\Str;
 
 class SubheadBinCard extends Component
 {
-    use WithPagination;
-
+    // Pagination removed as requested for the full-ledger view
     public Subhead $subhead;
     
     // Inline Entry Properties
@@ -20,6 +18,7 @@ class SubheadBinCard extends Component
         'release_date' => '',
         'reference_no' => '',
         'amount' => '',
+        'narration' => '',
     ];
 
     public $newRelease = [
@@ -42,46 +41,38 @@ class SubheadBinCard extends Component
     public function generateReferencePrefix()
     {
         $constant = "KTS/MBEP/BD/";
-        
-        // Ensure the MDA relationship is available
-        if (!$this->subhead->relationLoaded('mda')) {
-            $this->subhead->load('mda');
-        }
-
+        $subheadCode = (string)$this->subhead->subhead_code;
         $categoryType = strtolower($this->subhead->category->type ?? '');
-        $subheadDesc = strtolower($this->subhead->description ?? '');
         
-        // 1. Determine Category Part
+        // 1. Determine Category Part based on NCOA prefixes
         $typePart = "";
-        if (str_contains($categoryType, 'cap')) {
+        
+        // Capital: 10 digits or starts with 4
+        if (strlen($subheadCode) >= 10 || str_starts_with($subheadCode, '4')) {
             $typePart = "CAP/";
-        } elseif (str_contains($categoryType, 'pers')) {
+        } 
+        // Personnel / Salary: Starts with 210
+        elseif (str_starts_with($subheadCode, '210')) {
             $typePart = "REC/SALARY/";
-        } elseif (str_contains($categoryType, 'over')) {
-            // Distinguish between standard Overhead and General Recurrent
-            if (str_contains($subheadDesc, 'overhead') && !str_contains($subheadDesc, 'general')) {
-                $typePart = "OVH/";
-            } else {
-                $typePart = "REC/";
-            }
+        } 
+        // Recurrent Overhead: Starts with 220
+        elseif (str_starts_with($subheadCode, '220')) {
+            $typePart = "REC/";
+        }
+        // Revenue: Starts with 110 or 120
+        elseif (str_starts_with($subheadCode, '110') || str_starts_with($subheadCode, '120')) {
+            $typePart = "REV/";
         }
 
-        // 2. Secret Code Part (Using the correct mda_secret_code column)
-        $mdaPart = "";
-        if (str_contains($categoryType, 'cap') || str_contains($categoryType, 'over')) {
-            // Accessing the specific column name you provided
-            $secretNo = $this->subhead->mda->mda_secret_code ?? null;
-            
-            if ($secretNo !== null) {
-                $mdaPart = "S." . $secretNo . "/";
-            } else {
-                $mdaPart = "S.XX/"; // Fallback if database value is empty
-            }
-        }
-
+        // 2. Secret Code Part
+        // We now apply the secret code to all types for consistency
+        $secretNo = $this->subhead->mda->mda_secret_code ?? 'XX';
+        $mdaPart = "S." . $secretNo . "/";
+        
         // 3. File Volume Part
         $volPart = "VOL.I/";
 
+        // Final Assembly
         $this->newRelease['reference_no'] = $constant . $typePart . $mdaPart . $volPart;
     }
 
@@ -89,17 +80,14 @@ class SubheadBinCard extends Component
     {
         $release = Release::findOrFail($id);
         $this->editingReleaseId = $id;
+        
         $this->editForm = [
-            'release_date' => $release->release_date->format('Y-m-d'),
+            // Use Carbon::parse to safely handle strings from the database
+            'release_date' => \Carbon\Carbon::parse($release->release_date)->format('Y-m-d'),
             'reference_no' => $release->reference_no,
             'amount'       => $release->amount,
+            'narration'    => $release->narration,
         ];
-    }
-
-    public function cancelEdit()
-    {
-        $this->editingReleaseId = null;
-        $this->resetErrorBag();
     }
 
     public function updateRelease()
@@ -108,14 +96,48 @@ class SubheadBinCard extends Component
             'editForm.release_date' => 'required|date',
             'editForm.reference_no' => 'required|unique:releases,reference_no,' . $this->editingReleaseId,
             'editForm.amount'       => 'required|numeric|min:0',
+            'editForm.narration'    => 'nullable|string',
         ]);
 
         $release = Release::findOrFail($this->editingReleaseId);
-        $release->update($this->editForm);
+        
+        // Ensure the codes stay synced with the subhead during update
+        $release->update([
+            'release_date' => $this->editForm['release_date'],
+            'reference_no' => $this->editForm['reference_no'],
+            'amount'       => $this->editForm['amount'],
+            'narration'    => $this->editForm['narration'],
+            'mda_code'     => $this->subhead->mda_code,
+            'subhead_code' => $this->subhead->subhead_code,
+            'mda_id'       => $this->subhead->mda_id,
+            'subhead_id'   => $this->subhead->id,
+        ]);
 
         $this->editingReleaseId = null;
         session()->flash('success', 'Release updated successfully.');
     }
+
+    public function cancelEdit()
+    {
+        $this->editingReleaseId = null;
+        $this->resetErrorBag();
+    }
+
+    // public function updateRelease()
+    // {
+    //     $this->validate([
+    //         'editForm.release_date' => 'required|date',
+    //         'editForm.reference_no' => 'required|unique:releases,reference_no,' . $this->editingReleaseId,
+    //         'editForm.amount'       => 'required|numeric|min:0',
+    //         'editForm.narration'    => 'nullable|string',
+    //     ]);
+
+    //     $release = Release::findOrFail($this->editingReleaseId);
+    //     $release->update($this->editForm);
+
+    //     $this->editingReleaseId = null;
+    //     session()->flash('success', 'Release updated successfully.');
+    // }
 
     public function saveNewRelease()
     {
@@ -127,14 +149,16 @@ class SubheadBinCard extends Component
 
         Release::create([
             'subhead_id'   => $this->subhead->id,
+            'subhead_code' => $this->subhead->subhead_code, // Add this line to fix the error
             'mda_id'       => $this->subhead->mda_id,
+            'mda_code'     => $this->subhead->mda_code,
             'release_date' => $this->newRelease['release_date'],
             'reference_no' => $this->newRelease['reference_no'],
             'amount'       => $this->newRelease['amount'],
-            'narration'    => $this->newRelease['narration'],
+            'narration'    => $this->newRelease['narration'] ?? 'Release recorded via Bin Card',
         ]);
 
-        // Reset and Regenerate the Prefix for the next entry
+        // Reset and Regenerate for the next entry
         $this->newRelease = [
             'release_date' => now()->format('Y-m-d'),
             'reference_no' => '',
@@ -143,6 +167,11 @@ class SubheadBinCard extends Component
         ];
         
         $this->generateReferencePrefix();
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => 'Release recorded successfully!'
+        ]);
 
         session()->flash('success', 'New release added to ledger.');
     }
@@ -156,20 +185,20 @@ class SubheadBinCard extends Component
 
     public function render()
     {
-        $releases = Release::where('subhead_id', $this->subhead->id)
+        // 1. CRITICAL FIX: Query by Code instead of ID
+        // This ensures releases find the subhead even if the ID changed during re-upload
+        $releases = Release::where('subhead_code', $this->subhead->subhead_code)
+            ->where('mda_code', $this->subhead->mda_code) 
             ->orderBy('release_date', 'asc')
             ->orderBy('id', 'asc')
-            ->paginate(20);
+            ->get();
 
-        // Calculate global expenditure for header cards
-        $totalExp = Release::where('subhead_id', $this->subhead->id)
-            ->where('is_cancelled', false)
-            ->sum('amount');
-        
+        // 2. Budget Calculation
+        // Ensure 'total_budget' exists on your model, or use (approved_provision + additional_provision)
+        $totalExp = $releases->where('is_cancelled', false)->sum('amount');
         $balance = $this->subhead->total_budget - $totalExp;
         $percentLeft = ($this->subhead->total_budget > 0) ? ($balance / $this->subhead->total_budget) * 100 : 0;
 
-        // Balance Percentage Logic for UI Indicators
         $statusColor = match(true) {
             $balance < 0 => 'text-rose-600',
             $percentLeft <= 5 => 'text-yellow-500',
@@ -177,42 +206,34 @@ class SubheadBinCard extends Component
             default => 'text-emerald-500',
         };
 
+        // 3. Robust Theme Logic (Using the NCOA Prefixes we discussed)
         $categoryName = Str::lower($this->subhead->category->name ?? 'default');
+        $subheadCode = (string)$this->subhead->subhead_code;
 
         $theme = match(true) {
-            str_contains($categoryName, 'cap') => ['bg' => 'bg-emerald-50', 'border' => 'border-emerald-100', 'accent' => 'text-emerald-700', 'button' => 'bg-emerald-600', 'ring' => 'focus:ring-emerald-500'],
-            str_contains($categoryName, 'over') => ['bg' => 'bg-amber-50', 'border' => 'border-amber-100', 'accent' => 'text-amber-700', 'button' => 'bg-amber-600', 'ring' => 'focus:ring-amber-500'],
-            str_contains($categoryName, 'pers') => ['bg' => 'bg-orange-50', 'border' => 'border-orange-100', 'accent' => 'text-orange-700', 'button' => 'bg-orange-600', 'ring' => 'focus:ring-orange-500'],
-            str_contains($categoryName, 'rev') => ['bg' => 'bg-blue-50', 'border' => 'border-blue-100', 'accent' => 'text-blue-700', 'button' => 'bg-blue-600', 'ring' => 'focus:ring-blue-500'],
+            // Salary/Personnel (Prefix 210)
+            str_starts_with($subheadCode, '210') || str_contains($categoryName, 'pers') 
+                => ['bg' => 'bg-orange-50', 'border' => 'border-orange-100', 'accent' => 'text-orange-700', 'button' => 'bg-orange-600', 'ring' => 'focus:ring-orange-500'],
+            
+            // Capital (10 digits or prefix 4)
+            strlen($subheadCode) >= 10 || str_contains($categoryName, 'cap') 
+                => ['bg' => 'bg-emerald-50', 'border' => 'border-emerald-100', 'accent' => 'text-emerald-700', 'button' => 'bg-emerald-600', 'ring' => 'focus:ring-emerald-500'],
+            
+            // Overhead (Prefix 220)
+            str_starts_with($subheadCode, '220') || str_contains($categoryName, 'over') 
+                => ['bg' => 'bg-amber-50', 'border' => 'border-amber-100', 'accent' => 'text-amber-700', 'button' => 'bg-amber-600', 'ring' => 'focus:ring-amber-500'],
+            
+            // Revenue (Prefix 110/120)
+            str_starts_with($subheadCode, '1') || str_contains($categoryName, 'rev') 
+                => ['bg' => 'bg-blue-50', 'border' => 'border-blue-100', 'accent' => 'text-blue-700', 'button' => 'bg-blue-600', 'ring' => 'focus:ring-blue-500'],
+            
             default => ['bg' => 'bg-slate-50', 'border' => 'border-slate-100', 'accent' => 'text-slate-700', 'button' => 'bg-slate-600', 'ring' => 'focus:ring-slate-500'],
         };
 
-        // Initialize variables for chronological running totals
-        $runningTotalReleased = 0;
-        $runningBalance = $this->subhead->total_budget;
-
-        // Correctly calculate the starting balance for paginated pages
-        if (!$releases->onFirstPage() && $releases->count() > 0) {
-            $firstOnPage = $releases->first();
-            
-            $previousSum = Release::where('subhead_id', $this->subhead->id)
-                ->where('is_cancelled', false)
-                ->where(function($query) use ($firstOnPage) {
-                    $query->where('release_date', '<', $firstOnPage->release_date)
-                          ->orWhere(function($sub) use ($firstOnPage) {
-                              $sub->where('release_date', $firstOnPage->release_date)
-                                  ->where('id', '<', $firstOnPage->id);
-                          });
-                })->sum('amount');
-            
-            $runningTotalReleased = $previousSum;
-            $runningBalance -= $previousSum;
-        }
-
         return view('livewire.admin.subhead-bin-card', [
             'releases'             => $releases,
-            'initialTotalReleased' => $runningTotalReleased,
-            'initialBalance'       => $runningBalance,
+            'initialTotalReleased' => 0,
+            'initialBalance'       => $this->subhead->total_budget,
             'totalExpenditure'     => $totalExp,
             'balance'              => $balance,
             'percentLeft'          => $percentLeft,

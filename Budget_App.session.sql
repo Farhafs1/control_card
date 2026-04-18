@@ -1,1 +1,1 @@
-SELECT * FROM mdas
+SELECT mda_code, COUNT(*) FROM mdas GROUP BY mda_code HAVING COUNT(*) > 1;
