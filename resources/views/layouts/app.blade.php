@@ -10,7 +10,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script> -->
 </head>
 <body class="bg-slate-100 font-sans text-slate-900" 
       x-data="{ 
@@ -42,11 +41,14 @@
                 <div class="flex flex-col items-center text-center">
                     <div :class="isMinimized ? 'w-10 h-10' : 'w-16 h-16'" class="bg-white rounded-full p-1 shadow-inner border-2 border-emerald-600 overflow-hidden transition-all duration-300">
                         <div class="w-full h-full bg-emerald-50 rounded-full flex items-center justify-center overflow-hidden">
-                            @if($siteSettings && $siteSettings->logo_path)
-                                <img src="{{ Storage::url($siteSettings->logo_path) }}" class="w-full h-full object-cover">
-                            @else
-                                <span class="text-emerald-900 font-black text-xl tracking-tighter">KTS</span>
-                            @endif
+                            <div class="w-full h-full bg-emerald-50 rounded-full flex items-center justify-center overflow-hidden">
+                                @if($siteSettings && $siteSettings->logo_path)
+                                    <img src="{{ Storage::url($siteSettings->logo_path) }}" class="w-full h-full object-cover">
+                                @else
+                                    {{-- Fallback to the local asset if no database logo is set --}}
+                                    <img src="{{ asset('assets/images/katsina-crest.png') }}" class="w-full h-full object-cover">
+                                @endif
+                            </div>
                         </div>
                     </div>
                     <div x-show="!isMinimized" class="mt-3 transition-opacity duration-300">
@@ -60,66 +62,139 @@
                 </div>
             </div>
 
-            <nav class="flex-1 overflow-y-auto py-6 space-y-1 custom-scrollbar overflow-x-hidden">
+            <nav class="flex-1 overflow-y-auto py-6 space-y-2 custom-scrollbar overflow-x-hidden" 
+                x-data="{ 
+                    openGroup: '{{ request()->is('admin/analytics*') || request()->routeIs('analytics.*') ? 'insights' : (request()->is('admin/budget*') || request()->is('admin/subheads*') ? 'ops' : '') }}' 
+                }">
+
                 @if(auth()->user()->role === 'admin')
-                    {{-- ADMIN NAVIGATION --}}
-                    <div x-show="!isMinimized" class="px-6 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Strategic Insights</div>
-                    <x-nav-link href="{{ route('admin.dashboard') }}" :active="request()->routeIs('admin.dashboard')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-home w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Dashboard</span>
-                    </x-nav-link>
-                    <x-nav-link href="{{ route('admin.analytics.expenditure') }}" :active="request()->routeIs('admin.analytics.expenditure')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-chart-line w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Release Analytics</span>
-                    </x-nav-link>
+                    <div class="px-3">
+                        <button @click="openGroup = (openGroup === 'insights' ? '' : 'insights')" 
+                                class="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em] hover:text-white transition-colors group">
+                            <span x-show="!isMinimized">Strategic Insights</span>
+                            <i x-show="!isMinimized" class="fas fa-chevron-down text-[8px] transition-transform duration-300" :class="openGroup === 'insights' ? 'rotate-180' : ''"></i>
+                            <i x-show="isMinimized" class="fas fa-chart-pie w-full text-center text-emerald-500"></i>
+                        </button>
 
-                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Automated Intelligence</div>
-                    <x-nav-link href="{{ route('admin.data-extraction') }}" :active="request()->routeIs('admin.data-extraction')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-spider w-6 text-center text-emerald-400"></i> <span x-show="!isMinimized" class="ml-3">Data Extraction</span>
-                    </x-nav-link>
+                        <div x-show="openGroup === 'insights' || isMinimized" x-collapse x-cloak class="mt-1 space-y-1">
+                            <x-nav-link href="{{ route('admin.dashboard') }}" :active="request()->routeIs('admin.dashboard')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-th-large w-5"></i> 
+                                <span x-show="!isMinimized" class="ml-3 text-sm">Command Center</span>
+                            </x-nav-link>
 
-                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Budgetary Operations</div>
-                    <x-nav-link href="{{ route('admin.budget-upload') }}" :active="request()->routeIs('admin.budget-upload')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-upload w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Upload Budget</span>
-                    </x-nav-link>
-                    <x-nav-link href="{{ route('admin.subheads') }}" :active="request()->routeIs('admin.subheads*')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-list-ul w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Subhead Ledgers</span>
-                    </x-nav-link>
-                    <x-nav-link href="{{ route('admin.expenditure') }}" :active="request()->routeIs('admin.expenditure')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-exchange-alt w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Batch Tracking</span>
-                    </x-nav-link>
+                            <x-nav-link href="{{ route('admin.analytics.budget') }}" 
+                                        :active="request()->routeIs('admin.analytics.budget')" 
+                                        wire:navigate 
+                                        class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-file-invoice-dollar w-5"></i> 
+                                <span x-show="!isMinimized" class="ml-3 text-sm">Budget Analytics</span>
+                            </x-nav-link>
 
-                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Administration</div>
-                    <x-nav-link href="{{ route('admin.mdas') }}" :active="request()->routeIs('admin.mdas')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-building w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">MDA Management</span>
-                    </x-nav-link>
-                    <x-nav-link href="{{ route('admin.users') }}" :active="request()->routeIs('admin.users')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-users-cog w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">BO Management</span>
-                    </x-nav-link>
+                            <x-nav-link href="{{ route('admin.analytics.comparative') }}" 
+                                        :active="request()->routeIs('admin.analytics.comparative')"
+                                        wire:navigate 
+                                        class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-balance-scale w-5"></i> 
+                                <span x-show="!isMinimized" class="ml-3 text-sm">Comparative Analysis</span>
+                            </x-nav-link>
 
-                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">System</div>
-                    <x-nav-link href="{{ route('admin.system-logs') }}" :active="request()->routeIs('admin.system-logs')" wire:navigate class="flex items-center px-6"> 
-                        <i class="fas fa-history w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">System Logs</span>
-                    </x-nav-link>
-                    <x-nav-link href="{{ route('admin.settings') }}" :active="request()->routeIs('admin.settings')" wire:navigate class="flex items-center px-6"> 
-                        <i class="fas fa-user-shield w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Admin Control</span>
-                    </x-nav-link>
+                            <x-nav-link href="{{ route('admin.analytics.expenditure') }}" :active="request()->routeIs('admin.analytics.expenditure')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-project-diagram w-5"></i> 
+                                <span x-show="!isMinimized" class="ml-3 text-sm">Release Trends</span>
+                            </x-nav-link>
+                        </div>
+                    </div>
+
+                    <div class="px-3 mt-4">
+                        <button @click="openGroup = (openGroup === 'ops' ? '' : 'ops')" 
+                                class="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em] hover:text-white transition-colors">
+                            <span x-show="!isMinimized">Budgetary Operations</span>
+                            <i x-show="!isMinimized" class="fas fa-chevron-down text-[8px] transition-transform duration-300" :class="openGroup === 'ops' ? 'rotate-180' : ''"></i>
+                            <i x-show="isMinimized" class="fas fa-cogs w-full text-center text-emerald-500"></i>
+                        </button>
+
+                        <div x-show="openGroup === 'ops' || isMinimized" x-collapse x-cloak class="mt-1 space-y-1">
+                            <x-nav-link href="{{ route('admin.data-extraction') }}" :active="request()->routeIs('admin.data-extraction')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-robot w-5 text-emerald-400"></i> <span x-show="!isMinimized" class="ml-3 text-sm">AI Data Extraction</span>
+                            </x-nav-link>
+                            
+                            <x-nav-link href="{{ route('admin.budget-upload') }}" :active="request()->routeIs('admin.budget-upload')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-cloud-upload-alt w-5"></i> <span x-show="!isMinimized" class="ml-3 text-sm">Annual Provisioning</span>
+                            </x-nav-link>
+
+                            <x-nav-link href="{{ route('admin.subheads') }}" :active="request()->routeIs('admin.subheads*')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-book w-5"></i> <span x-show="!isMinimized" class="ml-3 text-sm">Subhead Ledgers</span>
+                            </x-nav-link>
+
+                            <x-nav-link href="{{ route('admin.expenditure') }}" :active="request()->routeIs('admin.expenditure')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-route w-5"></i> <span x-show="!isMinimized" class="ml-3 text-sm">Batch Tracking</span>
+                            </x-nav-link>
+                        </div>
+                    </div>
+
+                    <div class="px-3 mt-4">
+                        <button @click="openGroup = (openGroup === 'admin' ? '' : 'admin')" 
+                                class="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em] hover:text-white transition-colors">
+                            <span x-show="!isMinimized">Governance</span>
+                            <i x-show="!isMinimized" class="fas fa-chevron-down text-[8px] transition-transform duration-300" :class="openGroup === 'admin' ? 'rotate-180' : ''"></i>
+                            <i x-show="isMinimized" class="fas fa-shield-alt w-full text-center text-emerald-500"></i>
+                        </button>
+
+                        <div x-show="openGroup === 'admin' || isMinimized" x-collapse x-cloak class="mt-1 space-y-1">
+                            <x-nav-link href="{{ route('admin.mdas') }}" :active="request()->routeIs('admin.mdas')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-university w-5"></i> <span x-show="!isMinimized" class="ml-3 text-sm">MDA Directory</span>
+                            </x-nav-link>
+
+                            <x-nav-link href="{{ route('admin.users') }}" :active="request()->routeIs('admin.users')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-user-shield w-5"></i> <span x-show="!isMinimized" class="ml-3 text-sm">Access Control</span>
+                            </x-nav-link>
+
+                            <x-nav-link href="{{ route('admin.system-logs') }}" :active="request()->routeIs('admin.system-logs')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-fingerprint w-5 text-emerald-500/50"></i> <span x-show="!isMinimized" class="ml-3 text-[11px]">Audit Logs</span>
+                            </x-nav-link>
+
+                            <x-nav-link href="{{ route('admin.settings') }}" :active="request()->routeIs('admin.settings')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
+                                <i class="fas fa-sliders-h w-5"></i> <span x-show="!isMinimized" class="ml-3 text-sm">System Config</span>
+                            </x-nav-link>
+                        </div>
+                    </div>
+
                 @else
-                    {{-- BUDGET OFFICER NAVIGATION --}}
-                    <div x-show="!isMinimized" class="px-6 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Main Menu</div>
+                    <!-- Operations Section for Officers -->
+                    <div class="px-6 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Operations</div>
+                    
+                    <!-- Dashboard -->
                     <x-nav-link href="{{ route('officer.dashboard') }}" :active="request()->routeIs('officer.dashboard')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-tachometer-alt w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">My Dashboard</span>
+                        <i class="fas fa-tachometer-alt w-6"></i> 
+                        <span x-show="!isMinimized" class="ml-3">Dashboard</span>
                     </x-nav-link>
 
-                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Expenditures</div>
-                    <x-nav-link href="{{ route('officer.subheads') }}" :active="request()->routeIs('officer.subheads')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-plus w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Post Release</span>
+                    <!-- MDA Explorer -->
+                    <x-nav-link href="{{ route('officer.mda-explorer') }}" :active="request()->routeIs('officer.mda-explorer')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-search-location w-6"></i> 
+                        <span x-show="!isMinimized" class="ml-3">MDA Explorer</span>
                     </x-nav-link>
+
+                    <!-- Subheads & Ledgers -->
+                    <x-nav-link href="{{ route('officer.subheads') }}" :active="request()->routeIs('officer.subheads*')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-file-invoice-dollar w-6"></i> 
+                        <span x-show="!isMinimized" class="ml-3">Subhead Ledgers</span>
+                    </x-nav-link>
+
+                    <!-- Recent Releases -->
                     <x-nav-link href="{{ route('officer.recent-releases') }}" :active="request()->routeIs('officer.recent-releases')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-history w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">Recent Postings</span>
+                        <i class="fas fa-history w-6"></i> 
+                        <span x-show="!isMinimized" class="ml-3">Recent Releases</span>
                     </x-nav-link>
 
-                    <div x-show="!isMinimized" class="px-6 mt-8 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Account</div>
+                    <div class="my-4 border-t border-slate-800/50"></div>
+
+                    <!-- Account Section -->
+                    <div class="px-6 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Account</div>
+                    
                     <x-nav-link href="{{ route('officer.profile') }}" :active="request()->routeIs('officer.profile')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-user-cog w-6 text-center"></i> <span x-show="!isMinimized" class="ml-3">My Settings</span>
+                        <i class="fas fa-user-cog w-6"></i> 
+                        <span x-show="!isMinimized" class="ml-3">Profile Settings</span>
                     </x-nav-link>
                 @endif
             </nav>

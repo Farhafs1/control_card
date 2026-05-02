@@ -149,9 +149,16 @@ class StagedReleasesTable extends Component
                 ->exists();
         }
 
-        $isDuplicate = Release::where('reference_no', trim($release->reference_no))
+        $isDuplicate = Release::where('mda_code', trim($release->mda_code))
+                ->where('subhead_code', trim($release->subhead_code))
+                ->where('reference_no', trim($release->reference_no))
                 ->where('amount', $release->amount)
+                ->whereDate('release_date', $release->release_date)
                 ->exists();
+        // Old duplicate checker
+        // $isDuplicate = Release::where('reference_no', trim($release->reference_no))
+        //         ->where('amount', $release->amount)
+        //         ->exists();
 
         return [
             'mda_exists' => $mdaExists,
@@ -178,20 +185,20 @@ class StagedReleasesTable extends Component
         $record = ScrapedRelease::findOrFail($this->editingId);
 
         // Check duplicates in staging
-        $exists = ScrapedRelease::where('reference_no', $record->reference_no)
-            ->where('mda_code', $this->mda_code)
-            ->where('subhead_code', $this->subhead_code)
-            ->where('id', '!=', $this->editingId)
-            ->exists();
+        // $exists = ScrapedRelease::where('reference_no', $record->reference_no)
+        //     ->where('mda_code', $this->mda_code)
+        //     ->where('subhead_code', $this->subhead_code)
+        //     ->where('id', '!=', $this->editingId)
+        //     ->exists();
 
-        if ($exists) {
-            $this->dispatch('swal:modal', [
-                'type'    => 'warning',
-                'title'   => 'Duplicate Detected',
-                'text'    => "This combination already exists in staging.",
-            ]);
-            return;
-        }
+        // if ($exists) {
+        //     $this->dispatch('swal:modal', [
+        //         'type'    => 'warning',
+        //         'title'   => 'Duplicate Detected',
+        //         'text'    => "This combination already exists in staging.",
+        //     ]);
+        //     return;
+        // }
 
         $record->update([
             'mda_code' => $this->mda_code,
@@ -262,10 +269,21 @@ class StagedReleasesTable extends Component
         } elseif ($this->filter === 'duplicates') {
             $query->whereExists(function ($q) {
                 $q->select(DB::raw(1))->from('releases')
+                ->whereRaw('releases.mda_code = scraped_releases.mda_code')
+                ->whereRaw('releases.subhead_code = scraped_releases.subhead_code')
                 ->whereRaw('releases.reference_no = scraped_releases.reference_no')
-                ->whereRaw('releases.amount = scraped_releases.amount');
+                ->whereRaw('releases.amount = scraped_releases.amount')
+                ->whereRaw('DATE(releases.release_date) = DATE(scraped_releases.release_date)');
             });
-        }
+        } 
+              
+        // elseif ($this->filter === 'duplicates') {
+        //     $query->whereExists(function ($q) {
+        //         $q->select(DB::raw(1))->from('releases')
+        //         ->whereRaw('releases.reference_no = scraped_releases.reference_no')
+        //         ->whereRaw('releases.amount = scraped_releases.amount');
+        //     });
+        // }
 
         // 4. Final Output with consistent ordering
         return view('livewire.admin.staged-releases-table', [

@@ -11,18 +11,25 @@ return new class extends Migration
         Schema::create('settings', function (Blueprint $table) {
             $table->id();
             
-            // BUDGET CONTROLS
-            $table->year('fiscal_year')->default(2026);
-            $table->string('budget_status')->default('active'); // e.g., 'open', 'closed', 'provisional'
+            // BUDGET CONTROLS & HISTORICAL TAGGING
+            $table->year('fiscal_year')->default(2026)->unique();
+            $table->boolean('is_current_year')->default(true); // To toggle between active/archived years
+            $table->string('budget_status')->default('active'); 
             
             // BRANDING
             $table->string('app_name')->default('Budget Management System');
-            $table->string('logo_path')->nullable(); // Storage path for the logo
-            $table->string('state_name')->nullable(); // e.g., Katsina State Government
+            $table->string('logo_path')->nullable();
+            $table->string('state_name')->nullable();
             
             // SYSTEM PREFERENCES
             $table->string('currency_symbol')->default('₦');
-            $table->boolean('allow_overspending')->default(false); // Safety switch
+            $table->boolean('allow_overspending')->default(false);
+            
+            // SCRAPER CREDENTIALS
+            $table->string('scraper_url')->nullable();
+            $table->string('scraper_username')->nullable();
+            $table->string('scraper_password')->nullable();
+            $table->boolean('require_login')->default(false);
             
             $table->timestamps();
         });

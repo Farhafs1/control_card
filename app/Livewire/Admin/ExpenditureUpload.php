@@ -139,32 +139,42 @@ class ExpenditureUpload extends Component
 
                 $record = array_combine($header, array_pad($row, count($header), ''));
                 
+                // 1. Clean the codes
                 $mdaCodeCSV = preg_replace('/[^0-9]/', '', trim($record['mda_code'] ?? ''));
                 $subheadCodeCSV = preg_replace('/[^0-9]/', '', trim($record['subhead_code'] ?? ''));
 
                 if (empty($mdaCodeCSV) && empty($subheadCodeCSV)) continue;
 
+                // 2. Lookup the Subhead (The link to the Budget)
                 $subhead = Subhead::byCodes($mdaCodeCSV, $subheadCodeCSV)->first();
-                
+
                 if (!$subhead) {
                     throw new \Exception("Budget line '$subheadCodeCSV' not found for MDA '$mdaCodeCSV' at row $currentRow.");
                 }
 
+                // 3. DEFINE ALL VARIABLES FIRST (This prevents the "Undefined" error)
                 $rawAmount = (float) str_replace([',', ' ', '₦'], '', $record['amount'] ?? 0);
                 $dateValue = trim($record['release_date'] ?? $record['date'] ?? '');
-                
+                $refNo     = trim($record['reference_no'] ?? $record['reference'] ?? '');
+
+                // 4. Robust Date Parsing
                 try {
-                    $cleanDate = Carbon::createFromFormat('d/m/Y', $dateValue)->format('Y-m-d');
+                    // If the date contains a "-", it's likely YYYY-MM-DD (your backup format)
+                    if (str_contains($dateValue, '-')) {
+                        $cleanDate = Carbon::parse($dateValue)->format('Y-m-d');
+                    } else {
+                        // Otherwise assume DD/MM/YYYY
+                        $cleanDate = Carbon::createFromFormat('d/m/Y', $dateValue)->format('Y-m-d');
+                    }
                 } catch (\Exception $e) {
                     try {
                         $cleanDate = Carbon::parse($dateValue)->format('Y-m-d');
-                    } catch (\Exception $finalError) {
-                        throw new \Exception("Invalid date format at row $currentRow. Use DD/MM/YYYY.");
+                    } catch (\Exception $lastResort) {
+                        throw new \Exception("Invalid date format '$dateValue' at row $currentRow.");
                     }
                 }
 
-                $refNo = trim($record['reference_no'] ?? $record['reference'] ?? '');
-
+                // 5. NOW perform the Duplicate Check (Variables are now safe to use)
                 $isDuplicate = Release::where([
                     'mda_id' => $subhead->mda_id,
                     'subhead_id' => $subhead->id,

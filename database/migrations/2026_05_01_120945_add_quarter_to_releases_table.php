@@ -12,12 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('releases', function (Blueprint $table) {
-            // Adding 'after' makes the database table easier to read manually
-            $table->foreignId('user_id')
-                ->nullable()
-                ->after('mda_id') 
-                ->constrained()
-                ->onDelete('set null');
+            //
         });
     }
 
@@ -27,11 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('releases', function (Blueprint $table) {
-            // 1. Drop the foreign key constraint first
-            $table->dropForeign(['user_id']); 
-            
-            // 2. Then drop the column
-            $table->dropColumn('user_id');
+            //
         });
     }
 };

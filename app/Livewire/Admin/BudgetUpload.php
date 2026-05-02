@@ -102,6 +102,7 @@ class BudgetUpload extends Component
         ]);
     }
 
+
     public function save()
     {
         $this->validate([
@@ -109,6 +110,9 @@ class BudgetUpload extends Component
         ]);
 
         try {
+            $currentSetting = \App\Models\Setting::where('is_current_year', true)->first();
+            $activeYear = $currentSetting ? $currentSetting->fiscal_year : 2026;
+
             DB::beginTransaction();
 
             $path = $this->budget_file->getRealPath();
@@ -116,58 +120,81 @@ class BudgetUpload extends Component
             fgetcsv($file); // Skip Header
 
             $rowCount = 0;
+            $skippedMdaCount = 0;
 
             while (($row = fgetcsv($file)) !== FALSE) {
                 if (empty($row[0]) || empty($row[3])) continue;
 
-                // Normalize codes (remove spaces/commas)
                 $mdaCodeCSV = trim($row[0]);
                 $subheadCodeCSV = trim($row[3]);
+                $descriptionCSV = trim($row[4]);
+                $approvedProvisionCSV = (float) str_replace(',', '', $row[5]);
+                $additionalProvisionCSV = (float) str_replace(',', '', $row[7] ?? 0);
 
-                // 1. Map to MDA
+                // 1. Find MDA 
                 $mda = Mda::where('mda_code', $mdaCodeCSV)->first();
-                if (!$mda) continue;
+                
+                // Fallback for 10 vs 12 digit codes
+                if (!$mda) {
+                    $shortCode = substr($mdaCodeCSV, 0, 10);
+                    $mda = Mda::where('mda_code', $shortCode)->first();
+                }
 
-                // 2. Map to Category
-                $rawType = strtoupper($row[6]);
-                $type = ($rawType === 'RECURRENT') 
-                    ? (str_starts_with($subheadCodeCSV, '21') ? 'Personnel' : 'Overhead') 
-                    : $rawType;
+                if (!$mda) {
+                    $skippedMdaCount++;
+                    continue; 
+                }
 
-                $category = Category::firstOrCreate([
-                    'mda_id' => $mda->id,
-                    'type' => ucfirst(strtolower($type)),
-                ]);
+                // 2. Map Category
+                $rawType = strtoupper(trim($row[6]));
+                $type = (strlen($subheadCodeCSV) >= 10) ? 'Capital' : 
+                        (str_starts_with($subheadCodeCSV, '1') ? 'Revenue' : 
+                        (($rawType === 'RECURRENT') ? (str_starts_with($subheadCodeCSV, '21') ? 'Personnel' : 'Overhead') : 
+                        ucfirst(strtolower($rawType))));
 
-                // 3. Composite Upsert using the NEW Migration logic (mda_code + subhead_code)
+                $category = Category::firstOrCreate(['mda_id' => $mda->id, 'type' => $type]);
+
+                // 3. THE "SMART VALIDATION" LOGIC
+                // We include 'approved_provision' in the first array. 
+                // This ensures that items with the same code/name but different amounts 
+                // are treated as separate, valid budget heads (hitting your 2253 goal).
                 Subhead::updateOrCreate(
                     [
-                        'mda_code'     => $mdaCodeCSV, 
-                        'subhead_code' => $subheadCodeCSV,
-                        'description'  => trim($row[4]), // <--- MOVED HERE to identify unique rows
+                        'mda_code'           => $mda->mda_code, 
+                        'subhead_code'       => $subheadCodeCSV,
+                        'description'        => $descriptionCSV,
+                        'fiscal_year'        => $activeYear,
+                        'approved_provision' => $approvedProvisionCSV, // Unique identifier
                     ],
                     [
                         'mda_id'               => $mda->id, 
                         'category_id'          => $category->id,
-                        'approved_provision'   => (float) str_replace(',', '', $row[5]),
-                        'additional_provision' => (float) str_replace(',', '', $row[7] ?? 0),
+                        'additional_provision' => $additionalProvisionCSV,
+                        // We don't reset virement/supplementary to 0 here 
+                        // so that subsequent updates don't wipe existing progress.
                     ]
                 );
+
                 $rowCount++;
             }
             
             fclose($file);
             DB::commit();
 
-            $this->dispatch('swal:toast', "Success: $rowCount subheads synchronized.");
+            $resultMsg = "Successfully synchronized $rowCount budget heads.";
+            if ($skippedMdaCount > 0) {
+                $resultMsg .= " Warning: $skippedMdaCount rows skipped because MDA codes weren't found in your system.";
+            }
+
+            $this->dispatch('swal:toast', $resultMsg);
             $this->reset('budget_file');
 
         } catch (\Exception $e) {
             DB::rollBack();
-            session()->flash('error', 'Critical Upload Error: ' . $e->getMessage());
+            session()->flash('error', 'Upload Error: ' . $e->getMessage());
         }
     }
-
+    
     public function render()
     {
         return view('livewire.admin.budget-upload', [

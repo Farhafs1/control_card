@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\LogsActivity; 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -12,7 +13,7 @@ class Release extends Model
     use HasFactory, LogsActivity;
 
     protected $fillable = [
-        'user_id',        // Added to track the Budget Officer
+        'user_id',        
         'mda_id',
         'subhead_id', 
         'mda_code', 
@@ -20,10 +21,27 @@ class Release extends Model
         'release_date', 
         'reference_no', 
         'amount', 
-        'narration', 
+        'narration',
+        'quarter', 
         'is_cancelled',
         'cancelled_reason'
     ];
+
+    /**
+     * The "booted" method of the model.
+     * Automatically handles data integrity and automation logic.
+     */
+    protected static function booted()
+    {
+        static::creating(function ($release) {
+            // Automatically assign the quarter if it is missing
+            if (!$release->quarter) {
+                // Use release_date if provided, otherwise default to current date
+                $date = $release->release_date ?? now();
+                $release->quarter = ceil(Carbon::parse($date)->month / 3);
+            }
+        });
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -71,7 +89,6 @@ class Release extends Model
 
     /**
      * SCOPE: Get releases created by the currently authenticated user.
-     * Usage: Release::mine()->get();
      */
     public function scopeMine($query)
     {

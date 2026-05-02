@@ -5,6 +5,18 @@
             <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.3em] mt-1">System-Wide Subhead Synchronization</p>
         </div>
         <div class="flex space-x-3">
+            <a href="{{ route('admin.subhead-preview') }}" 
+            class="flex items-center px-4 py-3 rounded-lg transition-colors duration-200 group {{ request()->routeIs('admin.subhead-preview') ? 'bg-emerald-900/50 text-white' : 'text-emerald-100 hover:bg-emerald-600/50' }}">
+                
+                <svg class="w-5 h-5 mr-3 {{ request()->routeIs('admin.subhead-preview') ? 'text-white' : 'text-emerald-400 group-hover:text-white' }}" 
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01">
+                    </path>
+                </svg>
+
+                <span class="font-medium text-sm">Budget Previewer & Editor</span>
+            </a>
             <button wire:click="exportBudget" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition shadow-lg shadow-emerald-900/20">
                 📥 Backup Data
             </button>

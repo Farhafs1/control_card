@@ -19,11 +19,17 @@ return new class extends Migration
             $table->string('subhead_code')->index();
             $table->foreignId('mda_id')->constrained()->onDelete('cascade');
             $table->foreignId('subhead_id')->constrained()->onDelete('cascade');
+            
+            // Integrated User ID (Tracking who posted the release)
+            $table->foreignId('user_id')
+                ->nullable() 
+                ->constrained()
+                ->onDelete('set null');
 
             // Transaction Details
             $table->date('release_date');
             
-            // REMOVED ->unique() here to allow bulk releases with one reference number
+            // Index for fast searching of payment vouchers/reference numbers
             $table->string('reference_no')->index(); 
             
             $table->decimal('amount', 20, 2);
@@ -33,8 +39,7 @@ return new class extends Migration
 
             /**
              * COMPOSITE UNIQUE INDEX
-             * This allows the same reference_no to exist multiple times, 
-             * but prevents the EXACT same transaction from being duplicated.
+             * Prevents double-posting the exact same transaction row.
              */
             $table->unique(
                 ['mda_id', 'subhead_id', 'release_date', 'amount', 'reference_no'], 

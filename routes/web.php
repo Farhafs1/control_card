@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Session;
+// Existing Imports
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Admin\UserManagement;
 use App\Livewire\Admin\MdaManagement;
@@ -17,9 +19,15 @@ use App\Livewire\Admin\ReleaseAnalytics;
 use App\Livewire\Admin\Settings; 
 use App\Livewire\Admin\SystemLogs;
 use App\Livewire\Admin\DataExtraction; 
-use App\Livewire\Admin\StagedReleasesTable; // <--- UPDATED: Corrected class name
-use Illuminate\Support\Facades\Session;
+use App\Livewire\Admin\StagedReleasesTable;
 use App\Http\Controllers\ScraperController;
+
+// NEW FEATURES
+use App\Livewire\Admin\BudgetPerformance;
+use App\Http\Controllers\Admin\PerformanceExportController;
+use App\Livewire\Admin\SubheadPreview;
+use App\Livewire\BudgetAnalyticsDashboard;
+use App\Livewire\ComparativeAnalysis; // Make sure to import the component
 
 /**
  * AI DIAGNOSTIC ROUTE (STABLE)
@@ -50,7 +58,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
      */
     Route::get('/dashboard', function () {
         Session::forget('url.intended');
-
         if (auth()->user()->isAdmin()) {
             return redirect()->route('admin.dashboard');
         }
@@ -68,15 +75,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/subheads-mda/{mda}', SubheadShow::class)->name('subheads.show');
         Route::get('/subheads-bin/{subhead}/bin-card', SubheadBinCard::class)->name('subheads.bin-card');
         
-        // --- NEW: AUTOMATED INTELLIGENCE ---
+        // --- DATA EXTRACTION & SYNC ---
         Route::get('/data-extraction', DataExtraction::class)->name('data-extraction');
-        // Pointing the 'staged-releases' route name to the 'StagedReleasesTable' class
         Route::get('/staged-releases', StagedReleasesTable::class)->name('staged-releases');
 
-        // Analytics & AI Reporting
+        // --- FISCAL PERFORMANCE & REPORTING ---
+        // The Main Performance Dashboard
+        Route::get('/budget-performance', BudgetPerformance::class)->name('budget-performance');
+        // The Export Engine (PDF/CSV)
+        Route::get('/performance/export', [PerformanceExportController::class, 'export'])->name('performance.export');
+        
+        // Legacy Analytics
         Route::get('/analytics/expenditure', ReleaseAnalytics::class)->name('analytics.expenditure');
 
-        // Budget
+        // Budget Upload
         Route::get('/budget-upload', BudgetUpload::class)->name('budget-upload');
 
         // Expenditure Management
@@ -84,7 +96,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/expenditure/upload', ExpenditureUpload::class)->name('expenditure.upload');
         Route::get('/expenditure/{release}/edit', ExpenditureEdit::class)->name('expenditure.edit');
         
-        // Exports
+        // Legacy Exports
         Route::get('/export/expenditure', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'export'])->name('expenditure.export.pdf');
         Route::get('/expenditure/ppt', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'generateAIPpt'])->name('expenditure.ppt');
         
@@ -105,11 +117,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/settings', Settings::class)->name('settings'); 
         Route::get('/system-logs', SystemLogs::class)->name('system-logs');
         
-        // The route the button clicks
         Route::post('/sync-records', [ScraperController::class, 'sync'])->name('scraper.sync');
-
-        // The route the progress bar pings
         Route::get('/sync-progress', [ScraperController::class, 'getProgress'])->name('scraper.progress');
+
+        // Inside the admin group...
+        Route::get('/subhead-preview', SubheadPreview::class)->name('subhead-preview');
+        Route::get('/analytics/budget-performance', BudgetAnalyticsDashboard::class)
+        ->name('analytics.budget');
+        Route::get('/analytics/comparative-analysis', ComparativeAnalysis::class)
+        ->name('analytics.comparative');
     });
 
     // --- OFFICER SECTION ---
@@ -137,7 +153,6 @@ Route::get('/logout-manual', function () {
     Session::flush();
     request()->session()->invalidate();
     request()->session()->regenerateToken();
-    
     return redirect('/login'); 
 })->name('logout.manual');
 

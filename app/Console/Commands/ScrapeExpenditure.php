@@ -64,7 +64,7 @@ class ScrapeExpenditure extends Command
 
         $options = new ChromeOptions();
         $options->addArguments([
-            //'--headless=new', // This runs Chrome in the background
+            '--headless=new', // This runs Chrome in the background
             '--disable-gpu',
             '--no-sandbox',
             '--disable-dev-shm-usage',
@@ -112,9 +112,20 @@ class ScrapeExpenditure extends Command
                 return count($cells) > 0 && !empty(trim($cells[0]->getText()));
             });
 
+            $this->info("⏳ Waiting for table to stabilize...");
+
+            // Wait up to 10 seconds for the table to actually have data rows
+            $driver->wait(10)->until(
+                WebDriverExpectedCondition::presenceOfElementLocated(WebDriverBy::cssSelector('table tbody tr td'))
+            );
+
+            // Extra safety: Wait an additional 2 seconds for any background JS to finish coloring the rows
+            sleep(2);
+
             $this->info("📸 Taking table snapshot...");
 
-            $rows = $driver->findElements(WebDriverBy::cssSelector('table tbody tr'));
+            // The :has(td) part ensures we skip rows that don't have data cells (like headers)
+            $rows = $driver->findElements(WebDriverBy::cssSelector('table tbody tr:has(td)'));
             
             $referenceChecklist = []; // Initialize as empty array
 
@@ -215,7 +226,7 @@ class ScrapeExpenditure extends Command
                         
                         // 1. Wait for the Details Header (Short wait to detect if we branched)
                         $mdaHeaderXpath = "//th[contains(text(), 'MDA')]";
-                        $driver->wait(4)->until(
+                        $driver->wait(10)->until(
                             WebDriverExpectedCondition::presenceOfElementLocated(WebDriverBy::xpath($mdaHeaderXpath))
                         );
 
@@ -235,7 +246,7 @@ class ScrapeExpenditure extends Command
                             $driver->executeScript("arguments[0].click();", [$previewBtn]);
                             
                             $this->info("✅ Preview Button clicked for: " . $portalMdaName);
-                            usleep(2000000); // Wait for document/modal to load
+                            usleep(5000000); // Wait for document/modal to load
                         } catch (\Exception $e) {
                             $this->warn("⚠️ Table found, but 'Preview Document' button missing.");
                         }
@@ -261,23 +272,93 @@ class ScrapeExpenditure extends Command
                     $extractedRecords = $this->extractDataFromDocument($driver, $htmlContent, $portalMdaName);
 
                     foreach ($extractedRecords as $record) {
-                        ScrapedRelease::updateOrCreate(
-                            [
-                                'reference_no' => $record['reference_no'], 
-                                'subhead_code' => $record['subhead_code'], 
-                                'mda_code'     => $record['mda_code']
-                            ],
-                            [
-                                'mda_name'     => $record['mda_name'] ?? 'N/A',
-                                'release_date' => $record['release_date'],
-                                'amount'       => $record['amount'],
-                                'narration'    => $record['narration'],
-                                'status'       => $currentStatus 
-                            ]
-                        );
-                    }
+                        // These 3 are your "Primary Identity" (Database Unique Keys)
+                        $ref = trim($record['reference_no']);
+                        $mda = trim($record['mda_code']);
+                        $sub = trim($record['subhead_code']);
+                        
+                        // These are your "Value Parameters"
+                        $amt  = (float) $record['amount'];
+                        $date = $record['release_date'];
+                        $narr = trim($record['narration']);
 
-                    $this->info("✅ Extracted " . count($extractedRecords) . " sub-records for Ref: $targetRef");
+                        // 1. CHECK MAIN LEDGER (Permanent Table)
+                        // If it's already approved, we don't care about staging updates.
+                        $inMainLedger = \App\Models\Release::where('reference_no', $ref)
+                            ->where('mda_code', $mda)
+                            ->where('subhead_code', $sub)
+                            ->where('amount', $amt)
+                            ->exists();
+
+                        if ($inMainLedger) {
+                            $this->info("🚫 Already Approved: Skipping Ref $ref");
+                            continue;
+                        }
+
+                        // 2. CHECK STAGING TABLE (Searching ONLY by Unique Keys)
+                        $existingStaged = \App\Models\ScrapedRelease::where('reference_no', $ref)
+                            ->where('mda_code', $mda)
+                            ->where('subhead_code', $sub)
+                            ->first();
+
+                        if ($existingStaged) {
+                            // Now check all 6-7 parameters internally
+                            $isExactMatch = (
+                                (float)$existingStaged->amount === $amt &&
+                                $existingStaged->release_date  === $date &&
+                                $existingStaged->status        === $currentStatus &&
+                                $existingStaged->narration     === $narr
+                            );
+
+                            if ($isExactMatch) {
+                                $this->info("⏩ Skipping: Perfect match in staging for Ref $ref");
+                                continue;
+                            } 
+                            
+                            // If it exists but ANY parameter differs, update the existing row
+                            $existingStaged->update([
+                                'amount'       => $amt,
+                                'release_date' => $date,
+                                'status'       => $currentStatus,
+                                'narration'    => $narr,
+                                'mda_name'     => $record['mda_name'] ?? $existingStaged->mda_name
+                            ]);
+                            $this->warn("🔄 Updated Staging: Record refreshed for Ref $ref");
+                            continue;
+                        }
+
+                        // 3. REGISTER NEW STAGING RECORD (Only if Ref/MDA/Sub is totally new)
+                        \App\Models\ScrapedRelease::create([
+                            'reference_no' => $ref,
+                            'subhead_code' => $sub,
+                            'mda_code'     => $mda,
+                            'mda_name'     => $record['mda_name'] ?? 'N/A',
+                            'release_date' => $date,
+                            'amount'       => $amt,
+                            'narration'    => $narr,
+                            'status'       => $currentStatus
+                        ]);
+                        
+                        $this->info("🆕 Recorded: Fresh release for Ref $ref");
+                    }
+                    // foreach ($extractedRecords as $record) {
+                    //     ScrapedRelease::updateOrCreate(
+                    //         [
+                    //             'reference_no' => $record['reference_no'], 
+                    //             'subhead_code' => $record['subhead_code'], 
+                    //             'mda_code'     => $record['mda_code']
+                    //         ],
+                    //         [
+                    //             'mda_name'     => $record['mda_name'] ?? 'N/A',
+                    //             'release_date' => $record['release_date'],
+                    //             'amount'       => $record['amount'],
+                    //             'narration'    => $record['narration'],
+                    //             'status'       => $currentStatus 
+                    //         ]
+                    //     );
+                    // }
+
+                    // $this->info("✅ Extracted " . count($extractedRecords) . " sub-records for Ref: $targetRef");
 
                     // Navigate Back
                     $driver->navigate()->back();
@@ -404,9 +485,22 @@ class ScrapeExpenditure extends Command
                 continue; 
             }
 
-            // SUBHEAD ROW (8 Digits)
-            if ($currentMdaCode && strlen($cleanCode) === 8) {
+            // UPDATED SUBHEAD ROW LOGIC (Handles 8, 9, 10, or 11 digits)
+            $codeLength = strlen($cleanCode);
+
+            if ($currentMdaCode && ($codeLength >= 8 && $codeLength <= 11)) {
                 $subheadCode = $cleanCode;
+
+                /**
+                 * Fresh Problem Fix: 
+                 * If it's 9 digits (Recurrent) or 11 digits (Capital) AND starts with 0,
+                 * we strip that first zero to keep our database unique keys consistent.
+                 */
+                if (str_starts_with($subheadCode, '0') && ($codeLength === 9 || $codeLength === 11)) {
+                    $subheadCode = substr($subheadCode, 1);
+                    $this->info("🧹 Trimmed leading zero from subhead: $cleanCode -> $subheadCode");
+                }
+
                 $amount = 0;
                 $maxRetries = 5;
                 $retryCount = 0;
@@ -427,9 +521,8 @@ class ScrapeExpenditure extends Command
                         'narration'    => $globalNarration,
                         'mda_code'     => $currentMdaCode,
                         'mda_name'     => $currentMdaName,
-                        'subhead_code' => $subheadCode,
+                        'subhead_code' => $subheadCode, // Cleaned version
                         'amount'       => $amount
-                        
                     ];
                 }
             }
@@ -465,9 +558,19 @@ class ScrapeExpenditure extends Command
         $data['narration'] = trim(preg_replace('/\s+/', ' ', $data['narration']));
         $data['narration'] = rtrim($data['narration'], '.') . '.';
 
-        if (preg_match('/(\d{12})\/(\d{8,10})/', $fullText, $m)) {
+        // 1. Updated Regex to allow up to 11 digits for the subhead
+        if (preg_match('/(\d{12})\/(\d{8,11})/', $fullText, $m)) {
             $data['mda_code'] = $m[1];
-            $data['subhead_code'] = $m[2];
+            $rawSubhead = $m[2];
+            $length = strlen($rawSubhead);
+
+            // 2. Fresh Problem Fix: Normalize 9 and 11 digit codes starting with 0
+            if (str_starts_with($rawSubhead, '0') && ($length === 9 || $length === 11)) {
+                $data['subhead_code'] = substr($rawSubhead, 1);
+                // Optional: $this->info("🧹 Normalized Standard Subhead: $rawSubhead -> " . $data['subhead_code']);
+            } else {
+                $data['subhead_code'] = $rawSubhead;
+            }
         }
 
         return $data;

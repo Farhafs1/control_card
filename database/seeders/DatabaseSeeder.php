@@ -3,8 +3,10 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Mda;
+use App\Models\Setting;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,55 +15,70 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Create the Admin
-        $admin = \App\Models\User::create([
-            'name' => 'System Admin',
-            'email' => 'admin@budget.com',
-            'password' => bcrypt('123'),
-            'role' => 'admin',
-            'staff_no' => 'ADMIN1',
-        ]);
+        // 1. Create Users FIRST 
+        // We use updateOrCreate so we can run this multiple times safely
+        
+        $admin = User::updateOrCreate(
+            ['email' => 'admin@budget.com'],
+            [
+                'name' => 'System Admin',
+                'password' => Hash::make('123'),
+                'role' => 'admin',
+                'staff_no' => 'ADMIN1',
+            ]
+        );
 
-        // 2. Create Budget Officer 1
-        $bo1 = \App\Models\User::create([
-            'name' => 'Bukar Budget',
-            'email' => 'bo1@budget.com',
-            'password' => bcrypt('123'),
-            'role' => 'officer',
-            'staff_no' => 'BO1',
-        ]);
+        $bo1 = User::updateOrCreate(
+            ['email' => 'bo1@budget.com'],
+            [
+                'name' => 'Bukar Budget',
+                'password' => Hash::make('123'),
+                'role' => 'officer',
+                'staff_no' => 'BO1',
+            ]
+        );
 
-        // 3. Create Budget Officer 2
-        $bo2 = \App\Models\User::create([
-            'name' => 'Fatima Finance',
-            'email' => 'bo2@budget.com',
-            'password' => bcrypt('123'),
-            'role' => 'officer',
-            'staff_no' => 'BO2',
-        ]);
+        $bo2 = User::updateOrCreate(
+            ['email' => 'bo2@budget.com'],
+            [
+                'name' => 'Fatima Finance',
+                'password' => Hash::make('123'),
+                'role' => 'officer',
+                'staff_no' => 'BO2',
+            ]
+        );
 
-        // 4. Create MDAs and assign them to the BOs
-        \App\Models\Mda::create([
-            'user_id' => $bo1->id, // Assigned to BO1
-            'mda_code' => '0123001001',
-            'name' => 'Ministry of Health',
-            'mda_secret_code' => '98',
-            'sector' => 'Social',
-        ]);
+        // 2. Create Initial Settings
+        // Do this before MDAs in case MDA creation triggers a log that checks settings
+        Setting::updateOrCreate(
+            ['fiscal_year' => 2026],
+            [
+                'app_name' => 'Budget Control System',
+                'state_name' => 'Katsina State',
+                'is_current_year' => true,
+                'budget_status' => 'active',
+            ]
+        );
 
-        \App\Models\Mda::create([
-            'user_id' => $bo2->id, // Assigned to BO2
-            'mda_code' => '0517001001',
-            'name' => 'Ministry of Education',
-            'mda_secret_code' => '85',
-            'sector' => 'Social',
-        ]);
+        // 3. Create MDAs
+        Mda::updateOrCreate(
+            ['mda_code' => '0123001001'],
+            [
+                'user_id' => $bo1->id, 
+                'name' => 'Ministry of Health',
+                'mda_secret_code' => '98',
+                'sector' => 'Social',
+            ]
+        );
 
-            // Also create the initial settings
-        \App\Models\Setting::create([
-            'fiscal_year' => 2026,
-            'app_name' => 'Budget Control System',
-            'state_name' => 'Katsina State',
-        ]);
+        Mda::updateOrCreate(
+            ['mda_code' => '0517001001'],
+            [
+                'user_id' => $bo2->id, 
+                'name' => 'Ministry of Education',
+                'mda_secret_code' => '85',
+                'sector' => 'Social',
+            ]
+        );
     }
 }

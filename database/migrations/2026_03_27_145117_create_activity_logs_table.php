@@ -9,20 +9,28 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    
     public function up(): void
     {
         Schema::create('activity_logs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('action'); // e.g., 'Created', 'Updated', 'Deleted', 'Login'
-            $table->string('module'); // e.g., 'Budget', 'Expenditure', 'User'
-            $table->text('description'); // e.g., 'Updated Subhead 22020101 amount from 10m to 12m'
+            
+            /**
+             * THE FIX: nullable() is mandatory here.
+             * This allows logs to be created during migrations/seeding 
+             * or by the system scraper when no user is authenticated.
+             */
+            $table->foreignId('user_id')
+                ->nullable() 
+                ->constrained()
+                ->onDelete('set null'); // Changed to set null so logs remain if a user is deleted
+
+            $table->string('action');      // e.g., 'Created', 'Updated'
+            $table->string('module');      // e.g., 'Settings', 'Subhead'
+            $table->text('description'); 
             $table->string('ip_address')->nullable();
             $table->timestamps();
         });
     }
-    
 
     /**
      * Reverse the migrations.

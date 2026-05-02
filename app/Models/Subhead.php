@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Traits\LogsActivity; // 1. Import the Trait
+use App\Traits\LogsActivity; 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,16 +11,19 @@ use Illuminate\Database\Eloquent\Builder;
 
 class Subhead extends Model
 {
-    use HasFactory, LogsActivity; // 2. Add LogsActivity here
+    use HasFactory, LogsActivity; 
 
     protected $fillable = [
-        'mda_id', 
-        'mda_code', 
-        'category_id', 
-        'subhead_code', 
-        'description', 
-        'approved_provision', 
-        'additional_provision'
+        'mda_id',
+        'category_id',
+        'mda_code',
+        'subhead_code',
+        'description',
+        'fiscal_year', // <--- MAKE SURE THIS IS HERE
+        'approved_provision',
+        'additional_provision',
+        'virement_provision',
+        'supplementary_provision',
     ];
 
     protected $casts = [
@@ -28,17 +31,44 @@ class Subhead extends Model
         'additional_provision' => 'decimal:2',
     ];
 
+    // --- NEW PERFORMANCE METRICS ---
+
     /**
-     * Helper to get the total budget (Original + Supplementary)
+     * Calculate performance percentage for the quarter.
+     * Note: This relies on withSum('releases', 'amount') being called in the query.
      */
-    public function getTotalBudgetAttribute()
+    // In Subhead.php
+    public function getPerformancePercentageAttribute()
+    {
+        $provision = $this->total_provision; // Already cast to float in your model
+        if ($provision <= 0) return 0;
+        
+        // Ensure we treat the string amount from the DB as a number
+        $actual = (float) ($this->releases_sum_amount ?? 0); 
+        
+        return round(($actual / $provision) * 100, 2);
+    }
+
+    /**
+     * Helper to get the total provision (Approved + Additional)
+     */
+    public function getTotalProvisionAttribute()
     {
         return (float)$this->approved_provision + (float)$this->additional_provision;
     }
 
+    // --- EXISTING HELPER ---
+
     /**
-     * SCOPE: Flexible Code Search
+     * Helper to get the total budget (Alias for total_provision)
      */
+    public function getTotalBudgetAttribute()
+    {
+        return $this->total_provision;
+    }
+
+    // --- SCOPES & RELATIONSHIPS ---
+
     public function scopeByCodes(Builder $query, $mdaCode, $subheadCode)
     {
         $mdaCode = ltrim($mdaCode, '0');
@@ -53,37 +83,26 @@ class Subhead extends Model
         });
     }
 
-    /**
-     * RELATIONSHIP: Each subhead belongs to a specific MDA.
-     */
     public function mda(): BelongsTo
     {
         return $this->belongsTo(Mda::class, 'mda_id');
     }
 
-    /**
-     * RELATIONSHIP: Each subhead belongs to a category.
-     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'category_id');
     }
 
-    /**
-     * RELATIONSHIP: A subhead has many expenditure releases.
-     */
     public function releases(): HasMany
     {
         return $this->hasMany(Release::class);
     }
 
-    /**
-     * CUSTOM LOG DESCRIPTION:
-     * Detailed tracking for budget provision changes.
-     */
+    // --- LOGGING ---
+
     protected static function logAction($model, $action)
     {
-        $total = number_format($model->total_budget, 2);
+        $total = number_format($model->total_provision, 2);
         
         \App\Models\ActivityLog::create([
             'user_id' => auth()->id() ?? 1,
