@@ -23,6 +23,7 @@ class Release extends Model
         'amount', 
         'narration',
         'quarter', 
+        'year', // Added to support your comparative analysis logic
         'is_cancelled',
         'cancelled_reason'
     ];
@@ -34,11 +35,26 @@ class Release extends Model
     protected static function booted()
     {
         static::creating(function ($release) {
-            // Automatically assign the quarter if it is missing
+            $date = $release->release_date ?? now();
+            $carbonDate = Carbon::parse($date);
+
+            // Automatically assign the quarter if missing
             if (!$release->quarter) {
-                // Use release_date if provided, otherwise default to current date
-                $date = $release->release_date ?? now();
-                $release->quarter = ceil(Carbon::parse($date)->month / 3);
+                $release->quarter = ceil($carbonDate->month / 3);
+            }
+
+            // Automatically assign the year if missing
+            if (!$release->year) {
+                $release->year = $carbonDate->year;
+            }
+        });
+
+        static::updating(function ($release) {
+            // If the release_date is changed, we must re-calculate year and quarter
+            if ($release->isDirty('release_date')) {
+                $carbonDate = Carbon::parse($release->release_date);
+                $release->quarter = ceil($carbonDate->month / 3);
+                $release->year = $carbonDate->year;
             }
         });
     }

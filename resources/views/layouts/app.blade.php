@@ -71,7 +71,7 @@
                     <div class="px-3">
                         <button @click="openGroup = (openGroup === 'insights' ? '' : 'insights')" 
                                 class="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em] hover:text-white transition-colors group">
-                            <span x-show="!isMinimized">Strategic Insights</span>
+                            <span x-show="!isMinimized">{{ __('Strategic Insights') }}</span>
                             <i x-show="!isMinimized" class="fas fa-chevron-down text-[8px] transition-transform duration-300" :class="openGroup === 'insights' ? 'rotate-180' : ''"></i>
                             <i x-show="isMinimized" class="fas fa-chart-pie w-full text-center text-emerald-500"></i>
                         </button>
@@ -79,7 +79,7 @@
                         <div x-show="openGroup === 'insights' || isMinimized" x-collapse x-cloak class="mt-1 space-y-1">
                             <x-nav-link href="{{ route('admin.dashboard') }}" :active="request()->routeIs('admin.dashboard')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
                                 <i class="fas fa-th-large w-5"></i> 
-                                <span x-show="!isMinimized" class="ml-3 text-sm">Command Center</span>
+                                <span x-show="!isMinimized" class="ml-3 text-sm">Central Dashboard</span>
                             </x-nav-link>
 
                             <x-nav-link href="{{ route('admin.analytics.budget') }}" 
@@ -90,12 +90,46 @@
                                 <span x-show="!isMinimized" class="ml-3 text-sm">Budget Analytics</span>
                             </x-nav-link>
 
-                            <x-nav-link href="{{ route('admin.analytics.comparative') }}" 
-                                        :active="request()->routeIs('admin.analytics.comparative')"
+                            <x-nav-link href="{{ route('admin.analytics.performance') }}" 
+                                        :active="request()->routeIs('admin.analytics.performance')"
                                         wire:navigate 
                                         class="flex items-center px-6 py-2 rounded-lg">
                                 <i class="fas fa-balance-scale w-5"></i> 
-                                <span x-show="!isMinimized" class="ml-3 text-sm">Comparative Analysis</span>
+                                <span x-show="!isMinimized" class="ml-3 text-sm">Performance Ranking</span>
+                            </x-nav-link>
+
+                            <!-- Budget Performance Link -->
+                            <x-nav-link href="{{ route('admin.budget-performance') }}" 
+                                        :active="request()->routeIs('admin.budget-performance')" 
+                                        wire:navigate 
+                                        class="flex items-center px-6 py-2 rounded-lg transition-colors duration-200 hover:bg-gray-700 group">
+                                <div class="flex items-center w-full">
+                                    <i class="fas fa-chart-line w-5 text-center transition-colors duration-200 {{ request()->routeIs('admin.budget-performance') ? 'text-blue-400' : 'text-gray-400 group-hover:text-white' }}"></i>
+                                    <span x-show="!isMinimized" 
+                                        class="ml-3 text-sm font-medium transition-opacity duration-300"
+                                        x-transition:enter="transition ease-out duration-300"
+                                        x-transition:enter-start="opacity-0"
+                                        x-transition:enter-end="opacity-100">
+                                        Budget Performance
+                                    </span>
+                                </div>
+                            </x-nav-link>
+
+                            <!-- Comparative Analysis Link -->
+                            <x-nav-link href="{{ route('admin.comparative-analysis') }}" 
+                                        :active="request()->routeIs('admin.comparative-analysis')" 
+                                        wire:navigate 
+                                        class="flex items-center px-6 py-2 rounded-lg transition-colors duration-200 hover:bg-gray-700 group">
+                                <div class="flex items-center w-full">
+                                    <i class="fas fa-balance-scale w-5 text-center transition-colors duration-200 {{ request()->routeIs('admin.comparative-analysis') ? 'text-blue-400' : 'text-gray-400 group-hover:text-white' }}"></i>
+                                    <span x-show="!isMinimized" 
+                                        class="ml-3 text-sm font-medium transition-opacity duration-300"
+                                        x-transition:enter="transition ease-out duration-300"
+                                        x-transition:enter-start="opacity-0"
+                                        x-transition:enter-end="opacity-100">
+                                        Comparative Analysis
+                                    </span>
+                                </div>
                             </x-nav-link>
 
                             <x-nav-link href="{{ route('admin.analytics.expenditure') }}" :active="request()->routeIs('admin.analytics.expenditure')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">

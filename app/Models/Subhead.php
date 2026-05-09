@@ -27,8 +27,11 @@ class Subhead extends Model
     ];
 
     protected $casts = [
-        'approved_provision' => 'decimal:2',
-        'additional_provision' => 'decimal:2',
+        'approved_provision'      => 'decimal:2',
+        'additional_provision'    => 'decimal:2',
+        'virement_provision'      => 'decimal:2',   // Add this
+        'supplementary_provision' => 'decimal:2',   // Add this
+        'fiscal_year'             => 'integer',
     ];
 
     // --- NEW PERFORMANCE METRICS ---
@@ -54,7 +57,10 @@ class Subhead extends Model
      */
     public function getTotalProvisionAttribute()
     {
-        return (float)$this->approved_provision + (float)$this->additional_provision;
+        return (float)$this->approved_provision 
+            + (float)$this->additional_provision 
+            + (float)$this->supplementary_provision 
+            + (float)$this->virement_provision; // Virement can be negative, so + handles both cases
     }
 
     // --- EXISTING HELPER ---
@@ -111,5 +117,52 @@ class Subhead extends Model
             'description' => "{$action} Subhead {$model->subhead_code} ({$model->description}). Total Provision: ₦{$total}",
             'ip_address' => request()->ip(),
         ]);
+    }
+
+    // app/Models/Subhead.php
+
+    /**
+     * Scope a query to filter by GFSM category based on subhead_code strings.
+     */
+    public function scopeOfCategory($query, $categoryType)
+    {
+        if (!$categoryType) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($categoryType) {
+            // 1. Capital Expenditure (10-digit rule)
+            if ($categoryType === 'Expenditure_Capital') {
+                $q->whereRaw('LENGTH(subhead_code) = 10');
+            } 
+            
+            // 2. Personnel (Prefix 21, not 10 digits)
+            elseif ($categoryType === 'Expenditure_Personnel') {
+                $q->where('subhead_code', 'like', '21%')
+                ->whereRaw('LENGTH(subhead_code) != 10');
+            }
+
+            // 3. Overhead (Prefix 22, not 10 digits)
+            elseif ($categoryType === 'Expenditure_Overhead') {
+                $q->where('subhead_code', 'like', '22%')
+                ->whereRaw('LENGTH(subhead_code) != 10');
+            }
+
+            // 4. Revenue Categories (8-digit rule + specific prefixes)
+            elseif (str_starts_with($categoryType, 'Revenue_')) {
+                $prefix = match($categoryType) {
+                    'Revenue_FAAC'            => '11',
+                    'Revenue_IGR'             => '12',
+                    'Revenue_Aid_Grant'       => '13',
+                    'Revenue_Capital_Receipt' => '14',
+                    default                   => null
+                };
+
+                if ($prefix) {
+                    $q->where('subhead_code', 'like', $prefix . '%')
+                    ->whereRaw('LENGTH(subhead_code) = 8');
+                }
+            }
+        });
     }
 }

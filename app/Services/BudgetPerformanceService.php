@@ -2,39 +2,22 @@
 
 namespace App\Services;
 
-use App\Models\MDA;
-use App\Models\Category;
-use App\Models\Subhead;
+use App\Models\{Mda, Category, Subhead, Release, Setting};
 use Illuminate\Support\Facades\DB;
 
 class BudgetPerformanceService
 {
     /**
-     * Get date range for a specific quarter
-     */
-    public function getQuarterDates($quarter, $year = null)
-    {
-        $year = $year ?? date('Y');
-        return match ((int)$quarter) {
-            1 => ["$year-01-01", "$year-03-31"],
-            2 => ["$year-04-01", "$year-06-30"],
-            3 => ["$year-07-01", "$year-09-30"],
-            4 => ["$year-10-01", "$year-12-31"],
-            default => ["$year-01-01", "$year-12-31"],
-        };
-    }
-
-    /**
+     * REFACTORED: Uses the 'quarter' column for speed.
      * Logic for Report #1: Executive Overview
-     * Aggregates state-wide performance across the main categories (Revenue, Personnel, etc.)
      */
     public function getExecutiveOverview($quarter)
     {
-        $range = $this->getQuarterDates($quarter);
-
-        return Category::with(['subheads' => function ($query) use ($range) {
-            $query->withSum(['releases' => function ($q) use ($range) {
-                $q->whereBetween('release_date', $range);
+        return Category::with(['subheads' => function ($query) use ($quarter) {
+            $query->withSum(['releases' => function ($q) use ($quarter) {
+                if ($quarter !== 'all') {
+                    $q->where('quarter', $quarter);
+                }
             }], 'amount');
         }])
         ->get()
@@ -43,7 +26,7 @@ class BudgetPerformanceService
                 (float)$s->approved_provision + (float)$s->additional_provision
             );
 
-            $totalActual = $category->subheads->sum('releases_sum_amount');
+            $totalActual = $category->subheads->sum('releases_sum_amount') ?? 0;
 
             return (object)[
                 'category_name'   => $category->type,
@@ -55,22 +38,23 @@ class BudgetPerformanceService
     }
 
     /**
+     * REFACTORED: Handles "all" and optimized relationships.
      * Logic for Report #2: Detailed MDA & Subhead Performance
      */
     public function getDetailedReport($quarter, $categoryId)
     {
-        $range = $this->getQuarterDates($quarter);
-
-        return MDA::with(['subheads' => function ($query) use ($range, $categoryId) {
+        return Mda::with(['subheads' => function ($query) use ($quarter, $categoryId) {
             $query->where('category_id', $categoryId)
-                ->withSum(['releases' => function ($q) use ($range) {
-                    $q->whereBetween('release_date', $range);
+                ->withSum(['releases' => function ($q) use ($quarter) {
+                    if ($quarter !== 'all') {
+                        $q->where('quarter', $quarter);
+                    }
                 }], 'amount');
         }])
         ->get()
         ->map(function ($mda) {
             $mda->total_provision = $mda->subheads->sum(fn($s) => (float)$s->approved_provision + (float)$s->additional_provision);
-            $mda->total_actual = $mda->subheads->sum('releases_sum_amount');
+            $mda->total_actual = $mda->subheads->sum('releases_sum_amount') ?? 0;
             $mda->performance_pct = $mda->total_provision > 0 
                 ? ($mda->total_actual / $mda->total_provision) * 100 
                 : 0;
@@ -80,74 +64,86 @@ class BudgetPerformanceService
     }
 
     /**
-     * Logic for Report #3: Ranking Top/Least Performing MDAs
+     * REFACTORED Ranking: High Performance + Dynamic Category Sorting
+     * @param string $sortBy options: 'total_spend', 'revenue', 'personnel', 'overhead', 'capital'
      */
-    public function getRankingReport($quarter, $limit = null, $direction = 'desc')
+    public function getRankingReport($quarter, $limit = null, $direction = 'desc', $sortBy = 'total_spend')
     {
-        // 1. Setup Cumulative Dates
-        $settings = \App\Models\Setting::first();
-        $year = $settings->fiscal_year ?? date('Y');
-        
-        // Change this in your BudgetPerformanceService.php
-        $periods = [
-            1 => ["$year-01-01", "$year-03-31"], // Jan to March
-            2 => ["$year-04-01", "$year-06-30"], // April to June (STRICT)
-            3 => ["$year-07-01", "$year-09-30"], // July to Sept (STRICT)
-            4 => ["$year-10-01", "$year-12-31"], // Oct to Dec (STRICT)
+        $query = Mda::select('id', 'name', 'mda_code');
+
+        // Categorization mapping
+        $types = [
+            'revenue'   => 'REVENUE',
+            'personnel' => 'PERSONNEL',
+            'overhead'  => 'OVERHEAD', // Will handle OVERHEAD or RECURRENT
+            'capital'   => 'CAPITAL'
         ];
 
-        $start = $periods[$quarter][0];
-        $end   = $periods[$quarter][1];
-
-        // 2. Fetch MDAs with their code and spending
-        return \App\Models\Mda::select('id', 'name', 'mda_code')
-            ->with(['subheads.category', 'subheads.releases' => function($q) use ($start, $end) {
-                $q->whereBetween('release_date', [$start, $end]);
-            }])->get()->map(function ($mda) {
-                
-                $mdaTotals = [
-                    'mda_name'    => $mda->name,
-                    'mda_code'    => $mda->mda_code,
-                    'revenue'     => 0,
-                    'personnel'   => 0,
-                    'overhead'    => 0,
-                    'capital'     => 0,
-                    'other'       => 0,
-                    'total_spend' => 0, // This will be our sorting key
-                ];
-
-                foreach ($mda->subheads as $subhead) {
-                    $actual = (float)$subhead->releases->sum('amount');
-                    
-                    // Categorize the spending based on Category Type
-                    $type = strtoupper($subhead->category->type ?? '');
-
-                    if (str_contains($type, 'REVENUE')) {
-                        $mdaTotals['revenue'] += $actual;
-                    } elseif (str_contains($type, 'PERSONNEL')) {
-                        $mdaTotals['personnel'] += $actual;
-                    } elseif (str_contains($type, 'OVERHEAD') || str_contains($type, 'RECURRENT')) {
-                        $mdaTotals['overhead'] += $actual;
-                    } elseif (str_contains($type, 'CAPITAL')) {
-                        $mdaTotals['capital'] += $actual;
+        // 1. Efficiently sum each category via the database
+        foreach ($types as $key => $type) {
+            $query->withSum(['releases as ' . $key => function($q) use ($quarter, $type) {
+                $q->whereHas('subhead.category', function($cq) use ($type) {
+                    if ($type === 'OVERHEAD') {
+                        $cq->where('type', 'LIKE', '%OVERHEAD%')
+                           ->orWhere('type', 'LIKE', '%RECURRENT%');
                     } else {
-                        $mdaTotals['other'] += $actual;
+                        $cq->where('type', 'LIKE', '%' . $type . '%');
                     }
-                }
-
-                // Calculate the Total Spending across all headings
-                $mdaTotals['total_spend'] = $mdaTotals['revenue'] + 
-                                            $mdaTotals['personnel'] + 
-                                            $mdaTotals['overhead'] + 
-                                            $mdaTotals['capital'] + 
-                                            $mdaTotals['other'];
+                });
                 
-                return $mdaTotals;
-            })
-            // 3. Sort by Total Spend instead of Percentage
-            ->sortBy([['total_spend', $direction]])
-            ->values()
-            ->toArray();
+                if ($quarter !== 'all') {
+                    $q->where('quarter', $quarter);
+                }
+            }], 'amount');
+        }
+
+        // 2. Sum the absolute total for each MDA
+        $query->withSum(['releases as total_spend' => function($q) use ($quarter) {
+            if ($quarter !== 'all') {
+                $q->where('quarter', $quarter);
+            }
+        }], 'amount');
+
+        $results = $query->get()->map(function($mda) {
+            $rev = (float)$mda->revenue;
+            $per = (float)$mda->personnel;
+            $ove = (float)$mda->overhead;
+            $cap = (float)$mda->capital;
+            $tot = (float)$mda->total_spend;
+
+            return [
+                'mda_name'    => $mda->name,
+                'mda_code'    => $mda->mda_code,
+                'revenue'     => $rev,
+                'personnel'   => $per,
+                'overhead'    => $ove,
+                'capital'     => $cap,
+                // Ensures "Other" doesn't go negative due to rounding
+                'other'       => max(0, $tot - ($rev + $per + $ove + $cap)),
+                'total_spend' => $tot,
+            ];
+        });
+
+        // 3. Dynamic Sort: Sort by chosen category or total
+        $sorted = ($direction === 'desc') 
+            ? $results->sortByDesc($sortBy) 
+            : $results->sortBy($sortBy);
+
+        return $limit ? $sorted->take($limit)->values()->toArray() : $sorted->values()->toArray();
     }
 
+    /**
+     * Helper for display labels in exports or UI
+     */
+    public function getQuarterLabel($quarter)
+    {
+        return match ($quarter) {
+            1, '1' => 'First Quarter',
+            2, '2' => 'Second Quarter',
+            3, '3' => 'Third Quarter',
+            4, '4' => 'Fourth Quarter',
+            'all'  => 'Annual (All Quarters)',
+            default => 'Full Year',
+        };
+    }
 }

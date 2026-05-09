@@ -27,7 +27,8 @@ use App\Livewire\Admin\BudgetPerformance;
 use App\Http\Controllers\Admin\PerformanceExportController;
 use App\Livewire\Admin\SubheadPreview;
 use App\Livewire\BudgetAnalyticsDashboard;
-use App\Livewire\ComparativeAnalysis; // Make sure to import the component
+use App\Livewire\PerformanceRanking; // Make sure to import the component
+use App\Livewire\ComparativeAnalysis;
 
 /**
  * AI DIAGNOSTIC ROUTE (STABLE)
@@ -82,6 +83,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // --- FISCAL PERFORMANCE & REPORTING ---
         // The Main Performance Dashboard
         Route::get('/budget-performance', BudgetPerformance::class)->name('budget-performance');
+
+        // The new futuristic Comparative Analytics hub
+        // Route::get('/analytics/comparative', ComparativeAnalysis::class)->name('analytics.comparative');
+        Route::get('/comparative-analysis', ComparativeAnalysis::class)->name('comparative-analysis');
+
         // The Export Engine (PDF/CSV)
         Route::get('/performance/export', [PerformanceExportController::class, 'export'])->name('performance.export');
         
@@ -97,8 +103,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/expenditure/{release}/edit', ExpenditureEdit::class)->name('expenditure.edit');
         
         // Legacy Exports
-        Route::get('/export/expenditure', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'export'])->name('expenditure.export.pdf');
-        Route::get('/expenditure/ppt', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'generateAIPpt'])->name('expenditure.ppt');
+        // --- UPDATED EXPORTS ---
+        // Pointing to AnalyticsExportController as requested by your component logic
+        Route::get('/export/expenditure', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'export'])
+            ->name('expenditure.export'); // Removed the .pdf suffix to match the component
+
+        Route::get('/expenditure/ppt', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'generateAIPpt'])
+            ->name('expenditure.ppt');
         
         // Template Downloader
         Route::get('/expenditure-template/download', function() {
@@ -124,8 +135,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/subhead-preview', SubheadPreview::class)->name('subhead-preview');
         Route::get('/analytics/budget-performance', BudgetAnalyticsDashboard::class)
         ->name('analytics.budget');
-        Route::get('/analytics/comparative-analysis', ComparativeAnalysis::class)
-        ->name('analytics.comparative');
+        Route::get('/analytics/performance-ranking', PerformanceRanking::class)
+        ->name('analytics.performance');
+
     });
 
     // --- OFFICER SECTION ---

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Subhead;
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 
 class BudgetAnalyticsService
 {
@@ -42,7 +43,7 @@ class BudgetAnalyticsService
                 $prefix = $this->getPrefixForCategory($category);
                 if ($prefix) {
                     return $q->where('subhead_code', 'like', $prefix . '%')
-                            ->whereRaw('LENGTH(subhead_code) = 8'); // ADD THIS LINE
+                            ->whereRaw('LENGTH(subhead_code) = 8');
                 }
 
                 return $q;
@@ -50,22 +51,12 @@ class BudgetAnalyticsService
             ->withSum(['releases as actual_spent' => function ($query) use ($quarter) {
                 // CRITICAL: Exclude cancelled releases from the sum
                 $query->where('is_cancelled', false);
-                // 1. Check the original string first
-                    if ($quarter !== 'all') {
-                        
-                        // 2. Now that we know it's a number (1, 2, 3, or 4), cast it
-                        $q_val = (int) $quarter; 
 
-                        $driver = config('database.default');
-                        if ($driver === 'sqlite') {
-                            // SQLite math
-                            $query->whereRaw('(( (strftime("%m", date(release_date)) + 0) + 2) / 3) = ?', [$q_val]);
-                        } else {
-                            // MySQL math
-                            $query->whereRaw('CEIL(MONTH(release_date) / 3) = ?', [$q_val]);
-                        }
-                    }
-                    // If it IS 'all', the code skips this block and shows the full year (Correct!)
+                // NEW DATABASE-AGNOSTIC LOGIC
+                // Works on SQLite (Local) and MySQL (Production)
+                if ($quarter !== 'all') {
+                    $query->where('quarter', (int) $quarter);
+                }
             }], 'amount')
             ->with('mda');
 
@@ -77,31 +68,26 @@ class BudgetAnalyticsService
                 : $this->determineCategory($item->subhead_code);
         })->map(function ($group, $label) use ($settings) {
             
-            // 1. Safety Check: Skip empty groups early
             $firstItem = $group->first();
-            if (!$firstItem) {
-                return null; 
-            }
+            if (!$firstItem) return null; 
 
-            // 2. Provision Summing with Float Casting
-            $totalBudget = (float) $group->sum(function($item) {
-                return (float)$item->approved_provision + 
-                    (float)$item->virement_provision + 
-                    (float)$item->supplementary_provision + 
-                    (float)$item->additional_provision;
-            });
+            // Provision Summing (Approved + Virement + Supplementary + Additional)
+            $totalBudget = (float) $group->sum(fn($item) => 
+                (float)$item->approved_provision + 
+                (float)$item->virement_provision + 
+                (float)$item->supplementary_provision + 
+                (float)$item->additional_provision
+            );
             
-            // 3. Actual Spent Summing (Force Float to prevent nulls)
             $totalActual = (float) $group->sum('actual_spent');
             
-            // 4. Robust Revenue Detection
             $isRevenue = str_starts_with((string)$firstItem->subhead_code, '1');
             $itemType = $isRevenue ? 'Revenue' : 'Expenditure';
 
-            // 5. Calculate Variance using the Service Engine
+            // Variance Calculation
             $varianceData = $this->calculateVariance($totalBudget, $totalActual, $itemType);
             
-            // 6. Resolve Visual Tiers (Labels, Icons, Colors)
+            // Performance Tiering (Labels, Icons, Colors)
             $performance = (float) $varianceData->percentage;
             $tier = $this->getPerformanceTier($performance);
 
@@ -119,7 +105,7 @@ class BudgetAnalyticsService
                 'currency'      => $settings->currency_symbol
             ];
         })
-        ->filter() // Removes the nulls from step 1
+        ->filter()
         ->when($type, fn($c) => $c->where('type', $type))
         ->values();
     }
@@ -151,29 +137,37 @@ class BudgetAnalyticsService
      */
     protected function getPerformanceTier($percentage)
     {
-        if ($percentage >= $this->benchmarks['high']) {
+        // 1. Force float to prevent string comparison issues from database results
+        $percentage = (float) $percentage;
+
+        // 2. High Performance (e.g., >= 80%)
+        if ($percentage >= ($this->benchmarks['high'] ?? 80)) {
             return (object)[
                 'label' => 'High',
-                'color' => 'success', // Green
-                'icon'  => 'fa-check-circle'
+                'color' => 'success', // emerald/green
+                'icon'  => 'fa-check-circle',
+                'bg_class' => 'bg-emerald-100 text-emerald-800' // Useful for Tailwind badges
             ];
         }
 
-        if ($percentage >= $this->benchmarks['moderate']) {
+        // 3. Moderate Performance (e.g., >= 50%)
+        if ($percentage >= ($this->benchmarks['moderate'] ?? 50)) {
             return (object)[
                 'label' => 'Moderate',
-                'color' => 'warning', // Amber/Yellow
-                'icon'  => 'fa-exclamation-circle'
+                'color' => 'warning', // amber/yellow
+                'icon'  => 'fa-exclamation-circle',
+                'bg_class' => 'bg-amber-100 text-amber-800'
             ];
         }
 
+        // 4. Low Performance
         return (object)[
             'label' => 'Low',
-            'color' => 'danger', // Red
-            'icon'  => 'fa-times-circle'
+            'color' => 'danger', // rose/red
+            'icon'  => 'fa-times-circle',
+            'bg_class' => 'bg-rose-100 text-rose-800'
         ];
     }
-
     /**
      * DASHBOARD AGGREGATOR
      * Provides the high-level stats for the "Sleek" cards at the top of the UI.
@@ -321,23 +315,37 @@ class BudgetAnalyticsService
      */
     public function calculateVariance($budget, $actual, $type = 'Expenditure')
     {
-        $amount = (float)$budget - (float)$actual;
-        $percentage = $budget > 0 ? ($actual / $budget) * 100 : 0;
+        $budget = (float)$budget;
+        $actual = (float)$actual;
         
-        // Fetch the standard tier (High/Moderate/Low) based on the 80/50 rule
+        // 1. Better Percentage Logic
+        if ($budget > 0) {
+            $percentage = ($actual / $budget) * 100;
+        } else {
+            // If there's no budget but we spent money, it's 100% overspent/unbudgeted
+            $percentage = $actual > 0 ? 101 : 0; 
+        }
+        
+        // 2. Variance Amount
+        // Revenue: Negative means shortfall. Expenditure: Positive means savings.
+        $amount = $budget - $actual;
+        
         $tier = $this->getPerformanceTier($percentage);
         
-        // Define specific health statuses based on accounting context
+        // 3. Refined Contextual Status
         $status = 'neutral';
         if ($type === 'Revenue') {
-            if ($percentage >= 100) $status = 'success';
-            elseif ($percentage >= 75) $status = 'info';
-            else $status = 'warning';
+            $status = match(true) {
+                $percentage >= 100 => 'success', // Met/Exceeded target
+                $percentage >= 75  => 'info',    // On track
+                default            => 'warning', // Shortfall
+            };
         } else {
-            // Expenditure context: Over 100% is dangerous (overspent)
-            if ($percentage > 100) $status = 'danger';
-            elseif ($percentage >= 90) $status = 'warning';
-            else $status = 'success';
+            $status = match(true) {
+                $percentage > 100 => 'danger',  // Overspent (Budget exceeded)
+                $percentage >= 90 => 'warning', // Near limit
+                default           => 'success', // Within budget
+            };
         }
 
         return (object)[
@@ -345,10 +353,12 @@ class BudgetAnalyticsService
             'actual'     => $actual,
             'amount'     => $amount,
             'percentage' => round($percentage, 2),
-            'status'     => $status,        // Contextual color (success, info, warning, danger)
+            'status'     => $status,
             'label'      => $this->getStatusLabel($status),
-            'tier_label' => $tier->label,   // Absolute performance (High, Moderate, Low)
-            'tier_icon'  => $tier->icon
+            'tier_label' => $tier->label,
+            'tier_icon'  => $tier->icon,
+            'is_overspent' => ($type === 'Expenditure' && $actual > $budget),
+            'is_shortfall' => ($type === 'Revenue' && $actual < $budget),
         ];
     }
 
@@ -611,46 +621,24 @@ class BudgetAnalyticsService
         $year = $year ?? \App\Models\Setting::current()->fiscal_year;
         $openingBalance = (float) ($this->settings->opening_balance ?? 0);
 
-        // 2. Consistent Quarter Filter Logic
-        $applyQuarter = function ($query) use ($quarter) {
-            // Always exclude cancelled releases
-            $query->where('is_cancelled', false);
+        // 2. Reuse the Core Query Logic
+        // We fetch all performance data once. This already handles:
+        // - The new 'quarter' column (SQLite/MySQL agnostic)
+        // - Excluding cancelled releases
+        // - Summing all 4 provision types
+        $allPerformanceData = $this->getFilteredPerformance($quarter, null, null, 'category', $year);
 
-            if ($quarter !== 'all') {
-                $driver = config('database.default');
-                if ($driver === 'sqlite') {
-                    $query->whereRaw('(( (strftime("%m", date(release_date)) + 0) + 2) / 3) = ?', [$quarter]);
-                } else {
-                    $query->whereRaw('CEIL(MONTH(release_date) / 3) = ?', [$quarter]);
-                }
-            }
-        };
+        // 3. Extract Revenue Stats
+        $revenueItems = $allPerformanceData->where('type', 'Revenue');
+        $revBudget = (float) $revenueItems->sum('budget');
+        $revActual = (float) $revenueItems->sum('actual');
 
-        // 3. Fetch Raw Totals (Budget vs Actual) for Revenue
-        $revenueSubheads = \App\Models\Subhead::where('fiscal_year', $year)
-            ->where('subhead_code', 'like', '1%')
-            ->withSum(['releases as actual_spent' => $applyQuarter], 'amount')
-            ->get();
+        // 4. Extract Expenditure Stats
+        $expenditureItems = $allPerformanceData->where('type', 'Expenditure');
+        $expBudget = (float) $expenditureItems->sum('budget');
+        $expActual = (float) $expenditureItems->sum('actual');
 
-        $revBudget = (float) $revenueSubheads->sum(fn($item) => 
-            $item->approved_provision + $item->virement_provision + 
-            $item->supplementary_provision + $item->additional_provision
-        );
-        $revActual = (float) $revenueSubheads->sum('actual_spent');
-
-        // 4. Fetch Raw Totals (Budget vs Actual) for Expenditure
-        $expenditureSubheads = \App\Models\Subhead::where('fiscal_year', $year)
-            ->where('subhead_code', 'not like', '1%')
-            ->withSum(['releases as actual_spent' => $applyQuarter], 'amount')
-            ->get();
-
-        $expBudget = (float) $expenditureSubheads->sum(fn($item) => 
-            $item->approved_provision + $item->virement_provision + 
-            $item->supplementary_provision + $item->additional_provision
-        );
-        $expActual = (float) $expenditureSubheads->sum('actual_spent');
-
-        // 5. Use your existing Variance Engine to get Status, Labels, and Percentages
+        // 5. Use your Variance Engine for consistent status/labels
         $revAnalysis = $this->calculateVariance($revBudget, $revActual, 'Revenue');
         $expAnalysis = $this->calculateVariance($expBudget, $expActual, 'Expenditure');
 
@@ -673,10 +661,14 @@ class BudgetAnalyticsService
             'opening_balance'   => $openingBalance
         ];
     }
+
     public function getComparativeRankings($quarter = 'all')
     {
         return \App\Models\Release::query()
-            // 1. Join MDAs for official names and Subheads for provisions
+            // 1. Exclude cancelled transactions immediately
+            ->where('is_cancelled', false)
+            
+            // 2. Join MDAs for official names and Subheads for provisions
             ->join('mdas', 'releases.mda_id', '=', 'mdas.id')
             ->leftJoin('subheads', 'releases.subhead_id', '=', 'subheads.id')
             ->select(
@@ -684,15 +676,18 @@ class BudgetAnalyticsService
                 'mdas.name'
             )
             ->selectRaw('SUM(releases.amount) as total_actual')
-            // Summing Approved, Supplementary, and Additional provisions
+            
+            // 3. Summing ALL 4 provision types to match your other services
             ->selectRaw('SUM(
                 COALESCE(subheads.approved_provision, 0) + 
+                COALESCE(subheads.virement_provision, 0) + 
                 COALESCE(subheads.supplementary_provision, 0) + 
                 COALESCE(subheads.additional_provision, 0)
             ) as total_budget')
-            // 2. Apply Quarterly Filtering
+            
+            // 4. Database-Agnostic Quarter Filtering (Works on SQLite & MySQL)
             ->when($quarter !== 'all', function ($query) use ($quarter) {
-                return $query->where('releases.quarter', $quarter);
+                return $query->where('releases.quarter', (int) $quarter);
             })
             ->groupBy('mdas.mda_code', 'mdas.name')
             ->get()
@@ -701,39 +696,164 @@ class BudgetAnalyticsService
                 $annualBudget = (float) $item->total_budget;
 
                 /**
-                 * 3. Quarterly Performance Logic
-                 * If filtering by a single quarter, we compare actuals against 25% of the annual budget
-                 * to prevent "Efficiency" scores from looking artificially low.
+                 * 5. Comparative Budget Logic
+                 * Standardizes performance by comparing against 1/4 of budget per quarter.
                  */
                 $comparativeBudget = ($quarter !== 'all') ? ($annualBudget / 4) : $annualBudget;
-                
                 $performance = ($comparativeBudget > 0) ? ($actual / $comparativeBudget) * 100 : 0;
 
                 /**
-                 * 4. Institutional Weighting Logic
-                 * 70% weight to utilization (Efficiency)
-                 * 30% weight to scale (Absolute spending in Millions)
+                 * 6. Institutional Weighting Score
+                 * Efficiency (70%) + Scale (30%)
                  */
                 $item->weighted_score = ($performance * 0.7) + (($actual / 1000000) * 0.3);
 
-                // 5. UI Flags & Status (Required by your Blade template)
+                // 7. UI Metadata for Blade
                 $item->actual = $actual;
                 $item->performance = $performance;
-                
-                // Flags MDAs with releases over 100 Million as "High Impact"
-                $item->is_significant = $actual > 100000000; 
+                $item->is_significant = $actual > 100000000; // Over 100M
 
-                // Tailwind status colors based on execution efficiency
-                $item->status = match(true) {
-                    $performance >= 90 => 'emerald',
-                    $performance >= 50 => 'amber',
-                    default            => 'rose',
-                };
+                // 8. Performance Tiers
+                $tier = $this->getPerformanceTier($performance);
+                $item->status = $tier->color; // emerald, amber, rose
+                $item->status_label = $tier->label;
 
                 return $item;
             })
-            // Default sort by weighted score; Livewire handles the 'Spending' toggle sort
             ->sortByDesc('weighted_score')
             ->values(); 
+    }
+
+    public function getRankingsBySubheadLogic(array $constraints): Collection
+    {
+        $quarter = $constraints['quarter'];
+        $rules = $constraints['rules'];
+
+        $query = DB::table('mdas as m')
+            ->select('m.id', 'm.name', 'm.mda_code')
+            // Join releases to get actual spending
+            ->join('releases as r', 'm.id', '=', 'r.mda_id')
+            // Join subheads to get the approved budget (provision)
+            ->join('subheads as s', 'r.subhead_id', '=', 's.id')
+            ->selectRaw('SUM(r.amount) as actual')
+            ->selectRaw('SUM(s.approved_provision) as provision') 
+            ->groupBy('m.id', 'm.name', 'm.mda_code');
+
+        // 1. Structural Logic using the subhead_code from the subheads table
+        if ($rules === 'all_expenditure') {
+            $query->where(function ($q) {
+                $q->whereRaw('LENGTH(s.subhead_code) = 10')
+                  ->orWhere(function ($sq) {
+                      $sq->whereRaw('LENGTH(s.subhead_code) = 8')
+                        ->whereRaw("s.subhead_code NOT LIKE '1%'");
+                  });
+            });
+        } elseif (is_array($rules)) {
+            $query->whereRaw('LENGTH(s.subhead_code) = ?', [$rules['length']]);
+            
+            if (!empty($rules['prefixes'])) {
+                $query->where(function ($q) use ($rules) {
+                    foreach ($rules['prefixes'] as $prefix) {
+                        $q->orWhere('s.subhead_code', 'LIKE', $prefix . '%');
+                    }
+                });
+            }
+        }
+
+        // 2. Quarterly Filter (Filtering by release_date)
+        if ($quarter !== 'all') {
+            $query->whereRaw("strftime('%m', r.release_date) BETWEEN ? AND ?", [
+                sprintf('%02d', ($quarter - 1) * 3 + 1),
+                sprintf('%02d', $quarter * 3)
+            ]);
+        }
+
+        return $query->get()->map(function ($item) {
+            $actual = (float) $item->actual;
+            $provision = (float) $item->provision;
+
+            $item->performance_percentage = $provision > 0 ? ($actual / $provision) * 100 : 0;
+            $item->weighted_score = min($item->performance_percentage, 100);
+            
+            return $item;
+        });
+    }
+
+    public function getComparativeData(array $pA, array $pB, string $type): Collection
+    {
+        $dataA = $this->getPeriodStats($pA, $type);
+        $dataB = $this->getPeriodStats($pB, $type);
+
+        return $dataA->map(function ($itemA) use ($dataB) {
+            $itemB = $dataB->firstWhere('mda_id', $itemA->mda_id);
+            
+            $actualA = (float) ($itemA->total_actual ?? 0);
+            $actualB = (float) ($itemB->total_actual ?? 0);
+            
+            $variance = $actualB - $actualA;
+            $percentChange = $actualA > 0 ? ($variance / $actualA) * 100 : ($actualB > 0 ? 100 : 0);
+
+            return (object) [
+                'mda_id' => $itemA->mda_id,
+                'name' => $itemA->name,
+                'mda_code' => $itemA->mda_code,
+                'actual_a' => $actualA,
+                'actual_b' => $actualB,
+                'variance' => $variance,
+                'percent_change' => $percentChange,
+                'perf_a' => $itemA->performance ?? 0,
+                'perf_b' => $itemB->performance ?? 0,
+            ];
+        });
+    }
+
+    private function getPeriodStats(array $period, string $type): Collection
+    {
+        $query = DB::table('mdas as m')
+            ->join('releases as r', 'm.id', '=', 'r.mda_id')
+            ->join('subheads as s', 'r.subhead_id', '=', 's.id')
+            ->select('m.id as mda_id', 'm.name', 'm.mda_code')
+            ->selectRaw('SUM(r.amount) as total_actual')
+            ->selectRaw('(SUM(r.amount) / SUM(s.approved_provision)) * 100 as performance')
+            ->whereYear('r.release_date', $period['year']);
+
+        if ($period['quarter'] !== 'all') {
+            $query->whereRaw("((strftime('%m', r.release_date) - 1) / 3) + 1 = ?", [$period['quarter']]);
+        }
+
+        return $query->groupBy('m.id', 'm.name', 'm.mda_code')->get();
+    }
+
+    public function getMultiPeriodData(array $periods, string $type): Collection
+    {
+        // Get MDAs based on your previous software history
+        $mdas = DB::table('mdas')->select('id', 'name', 'mda_code')->get();
+
+        return $mdas->map(function ($mda) use ($periods) {
+            $values = [];
+            
+            foreach ($periods as $index => $p) {
+                $query = DB::table('releases as r')
+                    ->join('subheads as s', 'r.subhead_id', '=', 's.id')
+                    ->where('r.mda_id', $mda->id)
+                    ->whereYear('r.release_date', $p['year']);
+
+                // Dynamic Quarter Filter
+                if ($p['quarter'] !== 'all') {
+                    $query->whereRaw("((strftime('%m', r.release_date) - 1) / 3) + 1 = ?", [$p['quarter']]);
+                }
+
+                $values["p_$index"] = $query->sum('r.amount');
+            }
+
+            $mda->values = $values;
+            // Calculate total variance from first to last selected period
+            $first = reset($values);
+            $last = end($values);
+            $mda->total_variance = $last - $first;
+            $mda->variance_percentage = $first > 0 ? (($last - $first) / $first) * 100 : 0;
+
+            return $mda;
+        });
     }
 }

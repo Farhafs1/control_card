@@ -29,6 +29,9 @@ class StagedReleasesTable extends Component
     public $subhead_code;
     public $narration;
     public $amount;
+    // 1. Add the property at the top with the others
+    public $status; 
+
 
     protected $queryString = [
         'search' => ['except' => ''],
@@ -168,6 +171,52 @@ class StagedReleasesTable extends Component
         ];
     }
 
+    // public function edit($id)
+    // {
+    //     $record = ScrapedRelease::findOrFail($id);
+    //     $this->editingId = $id;
+    //     $this->mda_code = $record->mda_code;
+    //     $this->mda_name = $record->mda_name;
+    //     $this->subhead_code = $record->subhead_code;
+    //     $this->narration = $record->narration;
+    //     $this->amount = $record->amount;
+    //     $this->showEditModal = true;
+    // }
+
+    // public function update()
+    // {
+    //     $record = ScrapedRelease::findOrFail($this->editingId);
+
+    //     // Check duplicates in staging
+    //     // $exists = ScrapedRelease::where('reference_no', $record->reference_no)
+    //     //     ->where('mda_code', $this->mda_code)
+    //     //     ->where('subhead_code', $this->subhead_code)
+    //     //     ->where('id', '!=', $this->editingId)
+    //     //     ->exists();
+
+    //     // if ($exists) {
+    //     //     $this->dispatch('swal:modal', [
+    //     //         'type'    => 'warning',
+    //     //         'title'   => 'Duplicate Detected',
+    //     //         'text'    => "This combination already exists in staging.",
+    //     //     ]);
+    //     //     return;
+    //     // }
+
+    //     $record->update([
+    //         'mda_code' => $this->mda_code,
+    //         'mda_name' => $this->mda_name,
+    //         'subhead_code' => $this->subhead_code,
+    //         'narration' => $this->narration,
+    //         'amount' => $this->amount,
+    //     ]);
+
+    //     $this->showEditModal = false;
+    //     $this->sendAlert('Updated', 'Record modified.', 'success');
+    // }
+
+    
+    // 2. Update the edit() method to load the current status
     public function edit($id)
     {
         $record = ScrapedRelease::findOrFail($id);
@@ -177,28 +226,14 @@ class StagedReleasesTable extends Component
         $this->subhead_code = $record->subhead_code;
         $this->narration = $record->narration;
         $this->amount = $record->amount;
+        $this->status = $record->status; // <--- Add this
         $this->showEditModal = true;
     }
 
+    // 3. Update the update() method to save the manual status change
     public function update()
     {
         $record = ScrapedRelease::findOrFail($this->editingId);
-
-        // Check duplicates in staging
-        // $exists = ScrapedRelease::where('reference_no', $record->reference_no)
-        //     ->where('mda_code', $this->mda_code)
-        //     ->where('subhead_code', $this->subhead_code)
-        //     ->where('id', '!=', $this->editingId)
-        //     ->exists();
-
-        // if ($exists) {
-        //     $this->dispatch('swal:modal', [
-        //         'type'    => 'warning',
-        //         'title'   => 'Duplicate Detected',
-        //         'text'    => "This combination already exists in staging.",
-        //     ]);
-        //     return;
-        // }
 
         $record->update([
             'mda_code' => $this->mda_code,
@@ -206,10 +241,11 @@ class StagedReleasesTable extends Component
             'subhead_code' => $this->subhead_code,
             'narration' => $this->narration,
             'amount' => $this->amount,
+            'status' => $this->status, // <--- Add this
         ]);
 
         $this->showEditModal = false;
-        $this->sendAlert('Updated', 'Record modified.', 'success');
+        $this->sendAlert('Updated', 'Record and Status modified.', 'success');
     }
 
     public function confirmDiscard($id) { $this->dispatch('confirm-discard', id: $id); }

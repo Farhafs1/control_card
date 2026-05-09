@@ -7,15 +7,24 @@
         </div>
         
         <div class="mt-4 md:mt-0 flex space-x-2">
+            {{-- Print Button --}}
             <button onclick="window.print()" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 transition">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2-2v4"></path></svg>
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4"></path></svg>
                 Print
             </button>
             
-            <button wire:click="export('csv')" class="inline-flex items-center px-4 py-2 bg-green-700 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-800 transition">
+            {{-- Excel Button (New) --}}
+            <button wire:click="export('excel')" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Export Excel
+            </button>
+
+            {{-- CSV Button (Kept as fallback) --}}
+            <button wire:click="export('csv')" class="inline-flex items-center px-4 py-2 bg-emerald-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-emerald-900 transition">
                 Export CSV
             </button>
 
+            {{-- PDF Button --}}
             <button wire:click="export('pdf')" class="inline-flex items-center px-4 py-2 bg-red-700 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-800 transition">
                 Download PDF
             </button>
@@ -28,15 +37,27 @@
             
             {{-- Quarter Selection --}}
             <div>
-                <label class="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Select Fiscal Quarter</label>
-                <select wire:model.live="quarter" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 font-bold {{ $reportType === 'executive' ? 'bg-gray-50 text-gray-400' : '' }}">
-                    <option value="1">1st Quarter (Jan - Mar)</option>
-                    <option value="2">2nd Quarter (Apr - Jun)</option>
-                    <option value="3">3rd Quarter (Jul - Sep)</option>
-                    <option value="4">4th Quarter (Oct - Dec)</option>
+                <label class="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Select Fiscal Period</label>
+                <select wire:model.live="quarter" 
+                        class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 font-bold {{ $reportType === 'executive' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : '' }}"
+                        {{ $reportType === 'executive' ? 'disabled' : '' }}>
+                    
+                    {{-- Show 'All Quarters' only if it's a valid context, or auto-select it for Executive --}}
+                    @if($reportType === 'executive')
+                        <option value="all">Full Fiscal Year (Jan - Dec)</option>
+                    @else
+                        <option value="all">Cumulative (All Quarters to Date)</option>
+                        <option value="1">1st Quarter (Jan - Mar)</option>
+                        <option value="2">2nd Quarter (Apr - Jun)</option>
+                        <option value="3">3rd Quarter (Jul - Sep)</option>
+                        <option value="4">4th Quarter (Oct - Dec)</option>
+                    @endif
                 </select>
+                
                 @if($reportType === 'executive')
-                    <span class="text-[10px] text-amber-600 font-bold">Executive mode displays full year data.</span>
+                    <span class="text-[10px] text-blue-600 font-bold uppercase mt-1 block">
+                        <i class="fas fa-info-circle mr-1"></i> Executive mode locked to Annual view
+                    </span>
                 @endif
             </div>
 

@@ -20,6 +20,11 @@ class ExportController extends Controller
                         ->orWhere('narration', 'like', "%{$request->search}%");
                 });
             })
+            // NEW: Direct filter for the quarter column
+            ->when($request->quarter, function($q) use ($request) {
+                return $q->where('quarter', $request->quarter);
+            })
+            // Existing date filters
             ->when($request->dateFrom, fn($q) => $q->whereDate('release_date', '>=', $request->dateFrom))
             ->when($request->dateTo, fn($q) => $q->whereDate('release_date', '<=', $request->dateTo))
             ->when($request->minAmount, fn($q) => $q->where('amount', '>=', $request->minAmount))

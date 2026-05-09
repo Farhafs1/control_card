@@ -112,11 +112,12 @@
                             <td class="px-10 py-6">
                                 <div class="flex flex-col">
                                     <div class="flex items-center space-x-2">
+                                        <div class="w-3.5 h-3.5 rounded-full {{ $release->status === 'approved' ? 'bg-emerald-400' : ($release->status === 'returned' ? 'bg-rose-400' : 'bg-blue-400') }}" 
+                                            title="Status: {{ ucfirst($release->status) }}"></div>
                                         <span class="text-xs font-bold text-slate-700 tracking-tight">
                                             {{ $release->release_date ? \Carbon\Carbon::parse($release->release_date)->format('M d, Y') : 'Unknown' }}
                                         </span>
-                                        <div class="w-1.5 h-1.5 rounded-full {{ $release->status === 'approved' ? 'bg-emerald-400' : ($release->status === 'returned' ? 'bg-rose-400' : 'bg-blue-400') }}" 
-                                            title="Status: {{ ucfirst($release->status) }}"></div>
+                                        
                                     </div>
                                     <span class="text-[9px] font-medium text-slate-400 uppercase tracking-tighter">
                                         Added: {{ $release->created_at->diffForHumans() }}
@@ -249,6 +250,8 @@
         
         <div class="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden relative z-[80] border border-white/20">
             <div class="px-10 py-10">
+                
+                                
                 <div class="flex justify-between items-start mb-10">
                     <div>
                         <span class="px-3 py-1 bg-blue-50 text-blue-600 text-[9px] font-black uppercase rounded-full tracking-widest border border-blue-100">Adjustment Mode</span>
@@ -286,15 +289,46 @@
                     </div>
                 </div>
 
+                {{-- Status Override (Manual Update) --}}
+                <div class="mb-6">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Manual Status Override</label>
+                    <div class="grid grid-cols-3 gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+                        <label class="cursor-pointer">
+                            <input type="radio" wire:model="status" value="approved" class="hidden peer">
+                            <div class="py-2 text-center rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all peer-checked:bg-emerald-500 peer-checked:text-white text-slate-400 hover:bg-white">
+                                Approved
+                            </div>
+                        </label>
+                        
+                        <label class="cursor-pointer">
+                            <input type="radio" wire:model="status" value="circulating" class="hidden peer">
+                            <div class="py-2 text-center rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all peer-checked:bg-blue-500 peer-checked:text-white text-slate-400 hover:bg-white">
+                                Circulating
+                            </div>
+                        </label>
+
+                        <label class="cursor-pointer">
+                            <input type="radio" wire:model="status" value="returned" class="hidden peer">
+                            <div class="py-2 text-center rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all peer-checked:bg-rose-500 peer-checked:text-white text-slate-400 hover:bg-white">
+                                Returned
+                            </div>
+                        </label>
+                    </div>
+                    <p class="text-[8px] text-amber-500 font-bold uppercase mt-2 italic">
+                        * Use this if a release has exceeded the 1-week scraper window on E-Budget.
+                    </p>
+                </div>
+
                 <div class="flex items-center justify-between mt-12">
                     <button wire:click="$set('showEditModal', false)" class="text-[10px] font-black text-slate-400 uppercase hover:text-slate-600 tracking-widest transition-colors">
                         Discard Changes
                     </button>
                     <button wire:click="update" 
-                            class="px-10 py-4 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl shadow-slate-200 hover:bg-blue-600 hover:shadow-blue-200 transition-all active:scale-95 flex items-center">
+                        class="px-10 py-4 text-white text-[10px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 flex items-center
+                        {{ $status === 'approved' ? 'bg-emerald-600 shadow-emerald-200' : ($status === 'returned' ? 'bg-rose-600 shadow-rose-200' : 'bg-slate-900 shadow-slate-200') }}">
                         <i class="fas fa-save mr-3" wire:loading.remove wire:target="update"></i>
                         <i class="fas fa-circle-notch fa-spin mr-3" wire:loading wire:target="update"></i>
-                        Sync & Revalidate
+                        {{ $status === 'approved' ? 'Confirm & Ready to Ledger' : 'Update Staged Record' }}
                     </button>
                 </div>
             </div>

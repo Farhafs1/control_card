@@ -2,7 +2,7 @@
     <div class="max-w-7xl mx-auto">
         
         @if(!$showInsight)
-            {{-- VIEW 1: DATA & FILTERS (Current View) --}}
+            {{-- VIEW 1: DATA & FILTERS --}}
             
             {{-- Header --}}
             <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -13,7 +13,6 @@
                 
                 {{-- Action: Trigger AI Insight --}}
                 <div class="flex items-center gap-3">
-                    {{-- BUTTON: Visible when NOT loading --}}
                     <button wire:click="generateAIReport" 
                             wire:loading.remove 
                             wire:target="generateAIReport"
@@ -22,7 +21,6 @@
                         Generate AI Insight
                     </button>
 
-                    {{-- BUTTON: Visible ONLY while loading --}}
                     <button disabled 
                             wire:loading 
                             wire:target="generateAIReport"
@@ -32,142 +30,117 @@
                     </button>
                 </div>
             </div>
+
             {{-- Advanced Filter Bar --}}
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-wrap gap-4 items-center">
-                <div class="flex-1 min-w-[250px] relative">
-                    <i class="fas fa-search absolute left-3 top-3.5 text-slate-300"></i>
-                    <input type="text" wire:model.live.debounce.300ms="search" placeholder="Search narrative audit or ref..." 
-                           class="w-full pl-10 rounded-xl border-slate-200 text-sm focus:ring-emerald-500 focus:border-emerald-500">
+            <div class="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-wrap gap-2 items-center">
+                <div class="flex-1 min-w-[300px] relative group">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-slate-400 group-focus-within:text-emerald-500 transition-colors"></i>
+                    </div>
+                    <input type="text" 
+                        wire:model.live.debounce.300ms="search" 
+                        placeholder="Search narrative, audit codes or references..." 
+                        class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-transparent rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-400">
                 </div>
 
-                <select wire:model.live="categoryId" class="rounded-xl border-slate-200 text-sm focus:ring-emerald-500">
-                    <option value="">All State Categories</option>
-                    @foreach($categories as $cat)
-                        <option value="{{ $cat->id }}">{{ $cat->type }}</option>
-                    @endforeach
-                </select>
+                <div class="flex items-center gap-2">
+                    <!-- Quarter Select -->
+                    <div class="relative">
+                        <select wire:model.live="quarter" class="appearance-none pl-9 pr-8 py-2.5 bg-slate-50 border-transparent rounded-xl text-sm font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer">
+                            <option value="">Full Year</option>
+                            <option value="1">Q1: Jan - Mar</option>
+                            <option value="2">Q2: Apr - Jun</option>
+                            <option value="3">Q3: Jul - Sep</option>
+                            <option value="4">Q4: Oct - Dec</option>
+                        </select>
+                        <i class="fas fa-calendar-alt absolute left-3 top-3.5 text-slate-400 text-xs pointer-events-none"></i>
+                    </div>
 
-                <select wire:model.live="minAmount" class="rounded-xl border-slate-200 text-sm focus:ring-emerald-500">
-                    <option value="">Any Amount</option>
-                    <option value="1000000">₦1 Million +</option>
-                    <option value="100000000">₦100 Million +</option>
-                    <option value="1000000000">₦1 Billion +</option>
-                </select>
+                    <!-- Category Select -->
+                    <div class="relative">
+                        <select wire:model.live="categoryId" class="appearance-none pl-9 pr-8 py-2.5 bg-slate-50 border-transparent rounded-xl text-sm font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer">
+                            <option value="">All Categories</option>
+                            @foreach($categories as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <i class="fas fa-layer-group absolute left-3 top-3.5 text-slate-400 text-xs pointer-events-none"></i>
+                    </div>
 
-                <button wire:click="$set('search', '')" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-rose-600 uppercase tracking-tighter">
-                    Reset
-                </button>
+                    <button wire:click="resetFilters" 
+                            class="px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all uppercase tracking-wider">
+                        <i class="fas fa-undo-alt mr-1.5"></i> Reset
+                    </button>
+                </div>
             </div>
 
-            {{-- Top Level Stats --}}
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-8">
-                {{-- Total Value: Large (4 units) --}}
+            {{-- Stats Grid --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4 mb-8">
                 <div class="md:col-span-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-emerald-200 transition-colors">
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Value</span>
-                    <span class="text-1.5xl font-black text-emerald-600 truncate">₦{{ number_format($stats['total_value'], 2) }}</span>
+                    <span class="text-2xl font-black text-emerald-600 truncate">₦{{ number_format($stats['total_value'], 2) }}</span>
                 </div>
 
-                {{-- Release Count: Small (2 units) --}}
                 <div class="md:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-blue-200 transition-colors">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Release Count</span>
-                    <span class="text-1.5xl font-black text-blue-600">{{ $stats['count'] }}</span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Releases</span>
+                    <span class="text-2xl font-black text-blue-600">{{ $stats['count'] }}</span>
                 </div>
 
-                {{-- Average Release: Medium (3 units) --}}
                 <div class="md:col-span-3 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-slate-300 transition-colors">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Average Release</span>
-                    <span class="text-1.5xl font-black text-slate-700 truncate">₦{{ number_format($stats['avg_release'], 2) }}</span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Average</span>
+                    <span class="text-2xl font-black text-slate-700 truncate">₦{{ number_format($stats['avg_release'], 2) }}</span>
                 </div>
 
-                {{-- Largest Release: Medium (3 units) --}}
                 <div class="md:col-span-3 bg-emerald-900 p-5 rounded-2xl shadow-sm border border-emerald-800 flex flex-col justify-between">
                     <span class="text-[10px] font-bold text-emerald-300/60 uppercase tracking-widest">Largest</span>
-                    <span class="text-1.5xl font-black text-white truncate">₦{{ number_format($stats['max_release'], 2) }}</span>
+                    <span class="text-xl font-black text-white truncate">₦{{ number_format($stats['max_release'], 2) }}</span>
                 </div>
             </div>
 
-           {{-- Analytical Charts --}}
-           {{-- Row 1: High-Level Pulse --}}
+            {{-- Charts Row --}}
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                {{-- 1. Budget Performance (Burn Rate) --}}
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center" wire:ignore>
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Budget Burn Rate</h3>
-                    <div class="relative h-48 w-full">
-                        <canvas id="burnRateChart"></canvas>
-                        <div class="absolute inset-0 flex flex-col items-center justify-center mt-8">
-                            <span class="text-3xl font-black text-slate-800">{{ $burnRate }}%</span>
-                            <span class="text-[10px] text-slate-400 uppercase font-semibold">of Total Budget</span>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">Budget Burn Rate</h3>
+
+                    <!-- The relative container must have a defined height -->
+                    <div class="relative h-48 w-full flex items-center justify-center">
+                        
+                        <!-- 1. The Chart (Ignored by Livewire so it stays stable) -->
+                        <div wire:ignore class="absolute inset-0">
+                            <canvas id="burnRateChart"></canvas>
+                        </div>
+
+                        <!-- 2. The Text (Monitored by Livewire so it updates) -->
+                        <!-- We remove 'absolute inset-0' and 'mt-8' to prevent the overlap shift -->
+                        <div class="relative z-10 text-center pointer-events-none">
+                            <span 
+                                wire:key="burn-val-{{ $burnRate }}" 
+                                id="burnRateText" 
+                                class="text-3xl font-black text-slate-800 transform translate-y-8"
+                            >
+                                {{ $burnRate }}%
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                {{-- 2. Release Trends (Monthly Velocity) --}}
-                    <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200" wire:ignore>
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Release Velocity</h3>
-                                <p class="text-[10px] text-slate-400 mt-1">Monthly spending trend for the current year</p>
-                            </div>
-                            <div class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-bold">
-                                JAN - DEC 2026
-                            </div>
+                <div class="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-100" wire:ignore>
+                    <div class="flex items-center gap-4 mb-8">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                            <i class="fas fa-chart-line"></i>
                         </div>
-                        <div class="h-48">
-                            <canvas id="trendChart"></canvas>
-                        </div>
-                    </div>
-            </div>
-
-            {{-- Row 2: Composition & Rankings --}}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    {{-- 3. Top 10 Spending MDAs --}}
-                    <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200" wire:ignore>
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Top 10 Spending MDAs</h3>
-                                <p class="text-[10px] text-slate-400 mt-1">Highest expenditure departments</p>
-                            </div>
-                            <i class="fas fa-university text-blue-500 bg-blue-50 p-2 rounded-lg"></i>
-                        </div>
-                        <div class="h-64">
-                            <canvas id="mdaChart"></canvas>
-                        </div>
-                    </div>
-            
-            </div>
-            
-            {{-- Row 3: Composition & Lifecycle --}}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">    
-                {{-- 4. Expenditure by Type (Personnel vs Overhead vs Capital) --}}
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200" wire:ignore>
-                    <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Expenditure Composition</h3>
-                            <p class="text-[10px] text-slate-400 mt-1">Ratio of Recurrent to Capital spending</p>
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">Release Velocity</h3>
+                            <p class="text-[11px] text-slate-400">Quarterly performance analysis</p>
                         </div>
-                        <i class="fas fa-chart-pie text-emerald-500 bg-emerald-50 p-2 rounded-lg"></i>
                     </div>
-                    <div class="h-72"> {{-- Standardized height --}}
-                        <canvas id="sectorChart"></canvas>
-                    </div>
-                </div>
-
-                {{-- 5. Project Implementation Status --}}
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200" wire:ignore>
-                    <div class="flex items-center justify-between mb-6">
-                        <div>
-                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Project Completion Lifecycle</h3>
-                            <p class="text-[10px] text-slate-400 mt-1">Distribution of projects by current status</p>
-                        </div>
-                        <i class="fas fa-tasks text-orange-500 bg-orange-50 p-2 rounded-lg"></i>
-                    </div>
-                    <div class="h-72"> {{-- Standardized height --}}
-                        <canvas id="statusChart"></canvas>
+                    <div class="h-52 relative">
+                        <canvas id="trendChart"></canvas>
                     </div>
                 </div>
             </div>
-            
-            {{-- Narrative Audit Table --}}
+
+            {{-- Narrative Table --}}
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <table class="w-full text-left">
                     <thead class="bg-slate-50 border-b border-slate-200">
@@ -181,9 +154,9 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse($releases as $release)
                             <tr class="hover:bg-slate-50 transition-colors group">
-                                <td class="px-6 py-4">
+                                <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="block text-sm font-bold text-slate-700">{{ \Carbon\Carbon::parse($release->release_date)->format('d M, Y') }}</span>
-                                    <span class="text-[10px] text-slate-400 font-mono group-hover:text-emerald-500 transition-colors">{{ $release->reference_no }}</span>
+                                    <span class="text-[10px] text-slate-400 font-mono">{{ $release->reference_no }}</span>
                                 </td>
                                 <td class="px-6 py-4">
                                     <span class="block text-sm text-slate-700 font-bold leading-tight">{{ $release->mda->name ?? 'N/A' }}</span>
@@ -192,24 +165,17 @@
                                     </span>
                                 </td>
                                 <td class="px-6 py-4">
-                                    <p class="text-xs text-slate-500 italic max-w-md leading-relaxed border-l-2 border-slate-100 pl-3">
-                                        "{{ $release->narration }}"
-                                    </p>
+                                    <p class="text-xs text-slate-500 italic line-clamp-2 max-w-md">"{{ $release->narration }}"</p>
                                 </td>
                                 <td class="px-6 py-4 text-right">
-                                    <span class="text-sm font-black {{ $release->amount >= 1000000000 ? 'text-rose-600' : 'text-slate-900' }}">
+                                    <span class="text-sm font-black {{ $release->amount >= 100000000 ? 'text-rose-600' : 'text-slate-900' }}">
                                         ₦{{ number_format($release->amount, 2) }}
                                     </span>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="px-6 py-16 text-center">
-                                    <div class="flex flex-col items-center">
-                                        <i class="fas fa-folder-open text-slate-200 text-5xl mb-4"></i>
-                                        <p class="text-slate-400 text-sm italic font-medium">No releases found matching current filters.</p>
-                                    </div>
-                                </td>
+                                <td colspan="4" class="px-6 py-16 text-center text-slate-400 italic">No matching records found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -222,114 +188,52 @@
         @else
             {{-- VIEW 2: AI INSIGHT PAGE --}}
             <div class="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-                
-                {{-- Insight Header --}}
                 <div class="mb-8 flex items-center justify-between">
-                    <button wire:click="closeInsight" class="group flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors">
-                        <div class="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:bg-slate-100">
+                    <button wire:click="closeInsight" class="group flex items-center gap-2 text-slate-500 hover:text-slate-900">
+                        <div class="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center">
                             <i class="fas fa-arrow-left text-xs"></i>
                         </div>
                         <span class="text-xs font-bold uppercase tracking-widest">Back to Data</span>
                     </button>
 
-                    <div class="flex items-center gap-3">
-                        <button wire:click="exportReport('pdf')" class="px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all flex items-center gap-2">
-                            <i class="fas fa-file-pdf"></i> Save as PDF
+                    <!-- <div class="flex items-center gap-3">
+                        <button wire:click="exportReport('pdf')" class="px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-rose-100 transition-all flex items-center gap-2">
+                            <i class="fas fa-file-pdf"></i> Save PDF
                         </button>
-                        <button wire:click="exportReport('ppt')" class="px-4 py-2 bg-orange-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-orange-600 shadow-lg shadow-orange-100 transition-all flex items-center gap-2">
-                            <i class="fas fa-file-powerpoint"></i> PPT Briefing
-                        </button>
-                    </div>
+                    </div> -->
                 </div>
 
-                {{-- AI Content Card --}}
                 <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-                    <div class="bg-slate-900 p-8 text-white relative overflow-hidden">
-                        <div class="absolute top-0 right-0 p-4 opacity-10">
-                            <i class="fas fa-brain text-9xl"></i>
-                        </div>
-
+                    <div class="bg-slate-900 p-8 text-white relative">
                         <div class="relative z-10">
                             <span class="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/30">
                                 AI Intelligence Report
                             </span>
-                            <h2 class="text-3xl font-black mt-4 tracking-tight">Katsina State Expenditure Audit</h2>
-                            <p class="text-slate-400 text-sm mt-2 font-medium">Reflecting filtered dataset: {{ $stats['count'] }} transactions totaling ₦{{ number_format($stats['total_value'], 2) }}</p>
+                            <h2 class="text-3xl font-black mt-4 tracking-tight">Expenditure Insight Audit</h2>
+                            <p class="text-slate-400 text-sm mt-2">Katsina State Financial Management Data</p>
                         </div>
                     </div>
 
                     <div class="p-10">
                         @if($isAnalyzing)
-                            <div class="flex flex-col items-center py-20">
-                                <div class="relative">
-                                    <div class="w-16 h-16 border-4 border-emerald-100 rounded-full"></div>
-                                    <div class="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
-                                </div>
+                            <div class="flex flex-col items-center py-20 text-center">
+                                <div class="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                                 <h3 class="mt-8 font-black text-slate-900 text-lg">Synthesizing Financial Data...</h3>
-                                <p class="text-slate-400 text-sm mt-2 animate-pulse">Gemini 2.5 is auditing narrative patterns for Katsina State.</p>
+                                <p class="text-slate-400 text-sm mt-2">Auditing narrative patterns...</p>
                             </div>
                         @else
-                            <div class="max-w-none">
-                                <div class="text-slate-700 leading-relaxed space-y-6 text-lg">
-                                    @php
-                                        // 1. Convert ### Headlines into Styled HTML Headers
-                                        $formattedAI = preg_replace(
-                                            '/###\s+(.*)/', 
-                                            '<h3 class="text-xl font-black text-emerald-700 mt-10 mb-4 tracking-tight uppercase border-b-2 border-slate-50 pb-2">$1</h3>', 
-                                            $aiAnalysis
-                                        );
-
-                                        // 2. Convert **Bold** to strong with primary slate color
-                                        $formattedAI = preg_replace(
-                                            '/\*\*(.*?)\*\*/', 
-                                            '<strong class="text-slate-900 font-bold">$1</strong>', 
-                                            $formattedAI
-                                        );
-                                    @endphp
-
-                                    <div class="audit-content">
-                                        {!! nl2br($formattedAI) !!}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
-                                        <i class="fas fa-shield-alt text-xl"></i>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Document Security</p>
-                                        <p class="text-xs text-slate-500 italic max-w-xs leading-tight">
-                                            This insight was generated using audited state release records. Internal use only for the Katsina State Government.
-                                        </p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-xl border border-emerald-100">
-                                    <i class="fas fa-check-circle text-emerald-500"></i>
-                                    <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Data Verified</span>
-                                </div>
+                            <div class="audit-content text-slate-700 leading-relaxed space-y-6 text-lg">
+                                @php
+                                    $formattedAI = preg_replace('/###\s+(.*)/', '<h3 class="text-xl font-black text-emerald-700 mt-10 mb-4 tracking-tight uppercase border-b-2 border-slate-50 pb-2">$1</h3>', $aiAnalysis);
+                                    $formattedAI = preg_replace('/\*\*(.*?)\*\*/', '<strong class="text-slate-900 font-bold">$1</strong>', $formattedAI);
+                                @endphp
+                                {!! nl2br($formattedAI) !!}
                             </div>
                         @endif
                     </div>
                 </div>
-
-                <style>
-                    .audit-content {
-                        font-family: 'Inter', system-ui, sans-serif;
-                    }
-                    /* Customizing the strong tags within the AI output */
-                    .audit-content strong {
-                        color: #0f172a;
-                    }
-                    /* Ensure list-like spacing for headers */
-                    .audit-content h3:first-child {
-                        margin-top: 0;
-                    }
-                </style>
             </div>
         @endif
-
     </div>
 
     {{-- Chart Scripts --}}
@@ -362,8 +266,9 @@
                     status = liveData.status;
                 } else {
                     sectors = {
-                        labels: @json($sectorChartData->pluck('label')->toArray()),
-                        values: @json($sectorChartData->pluck('total')->toArray())
+                        // Adding ?? [] ensures that if the variable is missing, it just returns an empty array instead of a 500 error
+                        labels: @json(isset($sectorChartData) ? $sectorChartData->pluck('label')->toArray() : []),
+                        values: @json(isset($sectorChartData) ? $sectorChartData->pluck('total')->toArray() : [])
                     };
                     mdas = {
                         labels: @json($mdaChartData->pluck('label')->toArray()),

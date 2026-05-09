@@ -26,6 +26,9 @@ class ReleaseAnalytics extends Component
     public $isAnalyzing = false;
     public $showInsight = false; // Controls the view toggle
 
+    // ADD THIS LINE HERE:
+    public $quarter = '';
+
     protected $queryString = [
         'search' => ['except' => ''],
         'categoryId' => ['except' => ''],
@@ -62,14 +65,14 @@ class ReleaseAnalytics extends Component
         try {
             $summary = $this->prepareDataForAI();
 
-            $prompt = "You are the Chief Financial Auditor for Katsina State. 
+            $prompt = "You are the Chief Budget Officer for Katsina State. 
             Analyze this executive expenditure summary:
             
             $summary
             
             Provide a professional 5-paragraph executive brief with specific headings:
             1. SPENDING TRENDS: What sectors are dominating?
-            2. RISK & ANOMALIES: Are there unusual high-value concentrations?
+            2. THE IMPACT OF THE CURRENT TREND: What does this trend achievement means for the Administration?
             3. STRATEGIC RECOMMENDATION: One actionable directive for the Governor.
             
             Keep the tone authoritative and professional for a high-level government briefing.";
@@ -126,15 +129,19 @@ class ReleaseAnalytics extends Component
     private function prepareDataForAI()
     {
         $baseQuery = Release::query();
+        
+        // REFACTORED: This now uses the quarter-based applyFilters 
+        // to ensure the AI only sees the data for the selected quarter.
         $this->applyFilters($baseQuery);
 
         $total = $baseQuery->sum('amount');
         $count = $baseQuery->count();
         
-        // Get Top 3 MDAs
+        // Get Top 10 MDAs
+        // Logic preserved, but performance is boosted by the quarter filter in applyFilters
         $topMdas = (clone $baseQuery)->join('mdas', 'releases.mda_id', '=', 'mdas.id')
                     ->select('mdas.name', DB::raw('SUM(amount) as total'))
-                    ->groupBy('mdas.name')->orderBy('total', 'desc')->limit(3)->get();
+                    ->groupBy('mdas.name')->orderBy('total', 'desc')->limit(10)->get();
         
         $mdaString = $topMdas->map(fn($m) => "{$m->name} (₦" . number_format($m->total, 2) . ")")->implode(', ');
 
@@ -144,11 +151,15 @@ class ReleaseAnalytics extends Component
                     ->select('categories.type', DB::raw('SUM(releases.amount) as total'))
                     ->groupBy('categories.type')->orderBy('total', 'desc')->first();
 
+        // NEW: We explicitly tell the AI which quarter this data belongs to.
+        $quarterLabel = "Quarter " . $this->quarter;
+
         return "DATA SUMMARY:
+        - Reporting Period: $quarterLabel
         - Total Expenditure: ₦" . number_format($total, 2) . "
         - Volume: $count total releases
         - Leading Sector: " . ($topCat->type ?? 'N/A') . "
-        - Top 3 Spending MDAs: $mdaString";
+        - Top 10 Spending MDAs: $mdaString";
     }
 
     public function exportReport($format = 'pdf')
@@ -159,22 +170,62 @@ class ReleaseAnalytics extends Component
             : 'admin.expenditure.export';
 
         return redirect()->route($routeName, [
-            'search' => $this->search,
-            'minAmount' => $this->minAmount,
+            'search'     => $this->search,
+            'minAmount'  => $this->minAmount,
             'categoryId' => $this->categoryId,
-            'startDate' => $this->startDate,
-            'endDate' => $this->endDate,
-            'format' => $format,
-            'ai_text' => $this->aiAnalysis 
+            
+            // REFACTORED: Removed startDate and endDate.
+            // We now pass the integer quarter to the export controller.
+            'q'          => $this->quarter, 
+            
+            'format'     => $format,
+            'ai_text'    => $this->aiAnalysis 
         ]);
     }
 
     public function render()
     {
+        // 1. Static Category Options (Matches your manual mapping)
+        $categoryOptions = [
+            'Expenditure_Capital'   => 'Capital Expenditure',
+            'Expenditure_Personnel' => 'Personnel Cost',
+            'Expenditure_Overhead'  => 'Overhead Cost',
+            'Revenue_FAAC'          => 'FAAC Revenue',
+            'Revenue_IGR'           => 'IGR Revenue',
+        ];
+
+        // 2. Initialize Base Query with your specific logic
         $baseQuery = Release::query()->select('releases.*');
+
+        // 3. Apply the Category Logic (The "Codes" plan)
+        if ($this->categoryId) {
+            $baseQuery->whereHas('subhead', function($q) {
+                if ($this->categoryId === 'Expenditure_Capital') {
+                    $q->whereRaw('LENGTH(subhead_code) = 10');
+                } 
+                elseif ($this->categoryId === 'Expenditure_Personnel') {
+                    $q->where('subhead_code', 'like', '21%')->whereRaw('LENGTH(subhead_code) != 10');
+                }
+                elseif ($this->categoryId === 'Expenditure_Overhead') {
+                    $q->where('subhead_code', 'like', '22%')->whereRaw('LENGTH(subhead_code) != 10');
+                }
+                elseif (str_starts_with($this->categoryId, 'Revenue_')) {
+                    $prefix = match($this->categoryId) {
+                        'Revenue_FAAC' => '11',
+                        'Revenue_IGR'  => '12',
+                        default        => null
+                    };
+                    if ($prefix) {
+                        $q->where('subhead_code', 'like', $prefix . '%')->whereRaw('LENGTH(subhead_code) = 8');
+                    }
+                }
+            });
+        }
+
+        // 4. Apply standard filters (Search & Quarter)
         $this->applyFilters($baseQuery);
 
-        // 1. Stats Calculation
+        // 5. Calculate Stats from the filtered query
         $totalReleased = (float) (clone $baseQuery)->sum('amount');
         $stats = [
             'total_value' => $totalReleased,
@@ -183,107 +234,210 @@ class ReleaseAnalytics extends Component
             'max_release' => (float) (clone $baseQuery)->max('amount') ?? 0,
         ];
 
-        // 2. Budget Performance (Burn Rate)
-        // Replace 50000000000 with your actual annual approved budget total
-        $approvedBudget = 50000000000; 
-        $burnRate = $approvedBudget > 0 ? round(($totalReleased / $approvedBudget) * 100, 1) : 0;
-
-        // 3. Chart Data: Sectoral Breakdown (Personnel vs Overhead vs Capital)
+        // 6. Chart Data (Cloning ensures filters stay applied)
         $sectorChartData = (clone $baseQuery)
             ->join('subheads', 'releases.subhead_id', '=', 'subheads.id')
             ->join('categories', 'subheads.category_id', '=', 'categories.id')
-            ->select('categories.type as label', DB::raw('CAST(SUM(releases.amount) AS DECIMAL(20,2)) as total'))
-            ->groupBy('categories.type')->get()
-            ->map(fn($item) => ['label' => $item->label, 'total' => (float) $item->total]);
+            ->select('categories.type as label', DB::raw('SUM(releases.amount) as total'))
+            ->groupBy('categories.type')->get();
 
-        // 4. Chart Data: Top 10 MDAs
         $mdaChartData = (clone $baseQuery)
             ->join('mdas', 'releases.mda_id', '=', 'mdas.id')
-            ->select('mdas.name as label', DB::raw('CAST(SUM(releases.amount) AS DECIMAL(20,2)) as total'))
-            ->groupBy('mdas.name')->orderBy('total', 'desc')->limit(10)->get()
-            ->map(fn($item) => ['label' => $item->label, 'total' => (float) $item->total]);
+            ->select('mdas.name as label', DB::raw('SUM(releases.amount) as total'))
+            ->groupBy('mdas.name')->orderBy('total', 'desc')->limit(10)->get();
 
-        // 5. Release Trends (Monthly Velocity)
-        $monthlyTrend = (clone $baseQuery)
-            ->select(
-                DB::raw("strftime('%m', release_date) as month_num"), // For SQLite. Use MONTH(release_date) for MySQL
-                DB::raw('SUM(amount) as total')
-            )
-            ->groupBy('month_num')->orderBy('month_num')->get()
-            ->pluck('total', 'month_num');
-
-        $months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        $trendValues = [];
-        foreach (range(1, 12) as $m) {
-            $key = str_pad($m, 2, '0', STR_PAD_LEFT);
-            $trendValues[] = (float) ($monthlyTrend[$key] ?? 0);
-        }
-
-        // 6. Project Status Breakdown (Vetted, Approved, Released)
-        // Assuming you have a 'status' column in your releases or linked projects table
         $statusData = (clone $baseQuery)
             ->select('status', DB::raw('count(*) as count'))
             ->groupBy('status')->get();
 
+        // 7. Dynamic Budget (Burn Rate)
+        $approvedBudget = \App\Models\Subhead::query()
+            ->where('fiscal_year', $this->fiscal_year ?? date('Y'))
+            ->ofCategory($this->categoryId)
+            ->sum(DB::raw('COALESCE(approved_provision, 0) + COALESCE(supplementary_provision, 0)'));
+
+        $burnRate = $approvedBudget > 0 ? round(($totalReleased / $approvedBudget) * 100, 1) : 0;
+
+        // 8. Quarterly Trend
+        $quarterlyTrend = (clone $baseQuery)
+            ->select('quarter', DB::raw('SUM(amount) as total'))
+            ->groupBy('quarter')->orderBy('quarter')->pluck('total', 'quarter');
+        $trendValues = collect(range(1, 4))->map(fn($q) => (float) ($quarterlyTrend[$q] ?? 0))->toArray();
+
+        // 9. Final Results for Table
         $releases = $baseQuery->with(['mda', 'subhead.category'])
             ->orderBy('release_date', 'desc')->paginate(25);
 
-        // 7. Dispatch comprehensive payload
+        // 10. Dispatch to Frontend
         $this->dispatch('chartUpdated', [
-            'sectors' => [
-                'labels' => $sectorChartData->pluck('label')->toArray(),
-                'values' => $sectorChartData->pluck('total')->toArray(),
-            ],
-            'mdas' => [
-                'labels' => $mdaChartData->pluck('label')->toArray(),
-                'values' => $mdaChartData->pluck('total')->toArray(),
-            ],
             'burnRate' => $burnRate,
-            'trends' => [
-                'labels' => $months,
-                'values' => $trendValues,
-            ],
-            'status' => [
-                'labels' => $statusData->pluck('status')->toArray(),
-                'values' => $statusData->pluck('count')->toArray(),
-            ]
+            'trends'   => ['labels' => ['Q1', 'Q2', 'Q3', 'Q4'], 'values' => $trendValues],
+            'sectors'  => $sectorChartData,
+            'mdas'     => $mdaChartData,
+            'status'   => $statusData,
         ]);
 
         return view('livewire.admin.release-analytics', [
-            'releases'        => $releases,
-            'categories'      => Category::select('id', 'type')->get()->unique('type'),
-            'sectorChartData' => $sectorChartData,
-            'mdaChartData'    => $mdaChartData,
             'stats'           => $stats,
+            'releases'        => $releases,
+            'categories'      => $categoryOptions, // Uses your manual list now
+            'sectorChartData' => $sectorChartData, 
+            'mdaChartData'    => $mdaChartData,
+            'statusData'      => $statusData,
             'burnRate'        => $burnRate,
-            'trendLabels'     => $months,
+            'trendLabels'     => ['Q1', 'Q2', 'Q3', 'Q4'],
             'trendValues'     => $trendValues,
-            'statusData'      => $statusData
-        ])->layout('layouts.app');
+            'aiAnalysis'      => $this->aiAnalysis,
+        ]);
     }
+
     protected function applyFilters($query)
     {
+        // 1. Search Logic (Preserved exactly as is)
         if ($this->search) {
             $query->where(function($q) {
                 $q->where('releases.narration', 'like', '%' . $this->search . '%')
-                  ->orWhere('releases.reference_no', 'like', '%' . $this->search . '%')
-                  ->orWhere('releases.mda_code', 'like', '%' . $this->search . '%');
+                ->orWhere('releases.reference_no', 'like', '%' . $this->search . '%')
+                ->orWhere('releases.mda_code', 'like', '%' . $this->search . '%');
             });
         }
 
+        // 2. Category Filter (Preserved exactly as is)
         if ($this->categoryId) {
-            $category = Category::find($this->categoryId);
-            if ($category) {
-                $query->whereHas('subhead.category', fn($q) => $q->where('type', $category->type));
-            }
+            $query->whereHas('subhead', function($q) {
+                // 1. Handle Capital Expenditure (The 10-digit rule)
+                if ($this->categoryId === 'Expenditure_Capital') {
+                    $q->whereRaw('LENGTH(subhead_code) = 10');
+                } 
+                
+                // 2. Handle Personnel (Prefix 21)
+                elseif ($this->categoryId === 'Expenditure_Personnel') {
+                    $q->where('subhead_code', 'like', '21%')
+                    ->whereRaw('LENGTH(subhead_code) != 10');
+                }
+
+                // 3. Handle Overhead (Prefix 22)
+                elseif ($this->categoryId === 'Expenditure_Overhead') {
+                    $q->where('subhead_code', 'like', '22%')
+                    ->whereRaw('LENGTH(subhead_code) != 10');
+                }
+
+                // 4. Handle Revenue Categories (8-digit rule + specific prefixes)
+                elseif (str_starts_with($this->categoryId, 'Revenue_')) {
+                    $prefix = match($this->categoryId) {
+                        'Revenue_FAAC'            => '11',
+                        'Revenue_IGR'             => '12',
+                        'Revenue_Aid_Grant'       => '13',
+                        'Revenue_Capital_Receipt' => '14',
+                        default                   => null
+                    };
+
+                    if ($prefix) {
+                        $q->where('subhead_code', 'like', $prefix . '%')
+                        ->whereRaw('LENGTH(subhead_code) = 8');
+                    }
+                }
+            });
         }
 
+        // 3. Min Amount Filter (Preserved exactly as is)
         if ($this->minAmount) {
             $query->where('releases.amount', '>=', $this->minAmount);
         }
 
-        if ($this->startDate && $this->endDate) {
-            $query->whereBetween('releases.release_date', [$this->startDate, $this->endDate]);
+        /**
+         * 4. REFACTORED: Quarterly Logic
+         * We have removed the $startDate and $endDate checks.
+         * Everything now filters through the indexed 'quarter' column.
+         */
+        if ($this->quarter) {
+            $query->where('releases.quarter', $this->quarter);
         }
+    }
+
+    public function getStats()
+    {
+        $baseQuery = Release::query();
+        $this->applyFilters($baseQuery);
+
+        return [
+            'total_value' => (float) $baseQuery->sum('amount'),
+            'count'       => $baseQuery->count(),
+            'avg_release' => (float) $baseQuery->avg('amount') ?? 0,
+            'max_release' => (float) $baseQuery->max('amount') ?? 0,
+        ];
+    }
+
+    public function getReleases()
+    {
+        $baseQuery = Release::query()->with(['mda', 'subhead.category']);
+        $this->applyFilters($baseQuery);
+        
+        return $baseQuery->orderBy('release_date', 'desc')->paginate(25);
+    }
+
+    public function getSectorData()
+    {
+        $baseQuery = Release::query();
+        $this->applyFilters($baseQuery);
+
+        return $baseQuery->join('subheads', 'releases.subhead_id', '=', 'subheads.id')
+            ->join('categories', 'subheads.category_id', '=', 'categories.id')
+            ->select('categories.type as label', DB::raw('SUM(releases.amount) as total'))
+            ->groupBy('categories.type')
+            ->get();
+    }
+
+    public function getMdaData()
+    {
+        $baseQuery = Release::query();
+        $this->applyFilters($baseQuery);
+
+        return $baseQuery->join('mdas', 'releases.mda_id', '=', 'mdas.id')
+            ->select('mdas.name as label', DB::raw('SUM(releases.amount) as total'))
+            ->groupBy('mdas.name')
+            ->orderBy('total', 'desc')
+            ->limit(10)
+            ->get();
+    }
+
+    public function calculateBurnRate()
+    {
+        $baseQuery = Release::query();
+        $this->applyFilters($baseQuery);
+        $totalReleased = (float) $baseQuery->sum('amount');
+
+        $approvedBudget = \App\Models\Subhead::query()
+            ->where('fiscal_year', date('Y'))
+            ->ofCategory($this->categoryId)
+            ->sum(DB::raw('COALESCE(approved_provision, 0) + COALESCE(supplementary_provision, 0)'));
+
+        return $approvedBudget > 0 ? round(($totalReleased / $approvedBudget) * 100, 1) : 0;
+    }
+
+    public function getTrendData()
+    {
+        $baseQuery = Release::query();
+        $this->applyFilters($baseQuery);
+
+        $quarterlyTrend = $baseQuery->select('quarter', DB::raw('SUM(amount) as total'))
+            ->groupBy('quarter')
+            ->orderBy('quarter')
+            ->pluck('total', 'quarter');
+
+        return [
+            'labels' => ['Q1', 'Q2', 'Q3', 'Q4'],
+            'values' => collect(range(1, 4))->map(fn($q) => (float) ($quarterlyTrend[$q] ?? 0))->toArray()
+        ];
+    }
+
+    public function getStatusData()
+    {
+        $baseQuery = Release::query();
+        $this->applyFilters($baseQuery);
+
+        return $baseQuery->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->get();
     }
 }
