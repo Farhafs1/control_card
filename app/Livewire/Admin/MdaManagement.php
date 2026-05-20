@@ -63,25 +63,39 @@ class MdaManagement extends Component
 
     public function save()
     {
-        $this->validate();
-
-        $data = [
-            'name' => $this->name,
-            'mda_code' => $this->mda_code,
-            'sector' => $this->sector,
-            'user_id' => $this->user_id,
-            'mda_secret_code' => $this->mda_secret_code,
-            'is_active' => $this->is_active,
+        // 1. Dynamic Validation Rules
+        $rules = [
+            'name' => 'required|string|max:255',
+            'mda_code' => 'required|string|max:50',
+            'sector' => 'required|string|max:100',
+            'user_id' => 'required|integer|exists:users,id',
+            'is_active' => 'required|boolean',
+            // If editing, ignore this record's ID from the uniqueness constraint rule
+            'mda_secret_code' => [
+                'required',
+                'integer',
+                $this->editingMdaId 
+                    ? 'unique:mdas,mda_secret_code,' . $this->editingMdaId 
+                    : 'unique:mdas,mda_secret_code'
+            ],
         ];
 
-        if ($this->editingMdaId) {
-            Mda::find($this->editingMdaId)->update($data);
-            session()->flash('message', 'MDA updated successfully.');
-        } else {
-            Mda::create($data);
-            session()->flash('message', 'New MDA registered successfully.');
-        }
+        // Execute validation with the dynamic rules override
+        $validatedData = $this->validate($rules);
 
+        // 2. Database Transaction Guard
+        \DB::transaction(function () use ($validatedData) {
+            if ($this->editingMdaId) {
+                $mda = Mda::findOrFail($this->editingMdaId);
+                $mda->update($validatedData);
+                session()->flash('message', 'MDA updated successfully.');
+            } else {
+                Mda::create($validatedData);
+                session()->flash('message', 'New MDA registered successfully.');
+            }
+        });
+
+        // 3. Clean State Reset
         $this->reset(['name', 'mda_code', 'sector', 'user_id', 'mda_secret_code', 'showForm', 'editingMdaId']);
     }
 

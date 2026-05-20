@@ -120,6 +120,11 @@ class ScrapeExpenditure extends Command
             );
 
             // Extra safety: Wait an additional 2 seconds for any background JS to finish coloring the rows
+            
+            //Uncomment the two lines below for manual filter reset
+            // $this->info("🛑 PAUSED: Set your filters in Chrome.");
+            // $this->confirm("Press Enter when the table is ready", true);
+            
             sleep(2);
 
             $this->info("📸 Taking table snapshot...");
@@ -339,26 +344,8 @@ class ScrapeExpenditure extends Command
                             'status'       => $currentStatus
                         ]);
                         
-                        $this->info("🆕 Recorded: Fresh release for Ref $ref");
+                        $this->info("🆕 Recorded: Fresh release with " . count($extractedRecords) . " sub-records for Ref $ref");
                     }
-                    // foreach ($extractedRecords as $record) {
-                    //     ScrapedRelease::updateOrCreate(
-                    //         [
-                    //             'reference_no' => $record['reference_no'], 
-                    //             'subhead_code' => $record['subhead_code'], 
-                    //             'mda_code'     => $record['mda_code']
-                    //         ],
-                    //         [
-                    //             'mda_name'     => $record['mda_name'] ?? 'N/A',
-                    //             'release_date' => $record['release_date'],
-                    //             'amount'       => $record['amount'],
-                    //             'narration'    => $record['narration'],
-                    //             'status'       => $currentStatus 
-                    //         ]
-                    //     );
-                    // }
-
-                    // $this->info("✅ Extracted " . count($extractedRecords) . " sub-records for Ref: $targetRef");
 
                     // Navigate Back
                     $driver->navigate()->back();
@@ -369,9 +356,16 @@ class ScrapeExpenditure extends Command
                             WebDriverBy::tagName('table')
                         )
                     );
-
-                    usleep(500000); 
-
+                    
+                    // ADD THE SPACE HERE
+                    $this->line('------------------------------------------------------------');
+                    
+                    //Uncomment the two lines below for manual filter reset
+                    // $this->warn("✋ Manual Check: Reset filters if needed.");
+                    // $this->confirm("Press Enter to continue...", true);
+                    
+                    usleep(500000);
+                    
                 } catch (\Exception $e) {
                     $this->error("❌ Error at $targetRef: " . $e->getMessage());
                     $driver->get('https://kteb.katsinastate.gov.ng/release-collection');
@@ -543,7 +537,7 @@ class ScrapeExpenditure extends Command
             'subhead_code' => 'N/A'
         ];
 
-        $anchor = '(?:I\s*am\s+directed|enable|effect|facilitate|cater|settle|offset|being|for\s+the\s+implementation|payment\s+of|reimburse|payable|for\s+payment)';
+        $anchor = '(?:I\s+(?:wish\s+.*?)\s*am\s+directed|enable|effect|facilitate|cater|settle|offset|being|for\s+the\s+implementation|payment\s+of|reimburse|payable|for\s+payment)';
         $anchorPattern = '/(' . $anchor . '.*?)<\/p>/is';
 
         if (preg_match($anchorPattern, $fullText, $matches)) {
