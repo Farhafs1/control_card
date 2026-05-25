@@ -64,7 +64,9 @@ class UserManagement extends Component
             $this->dispatch('swal:toast', 'Staff created successfully');
         }
 
+        // Clean up everything completely back to base defaults
         $this->reset(['name', 'email', 'password', 'staff_no', 'showForm', 'editingUserId']);
+        $this->role = 'officer'; 
     }
 
     public function edit($id)

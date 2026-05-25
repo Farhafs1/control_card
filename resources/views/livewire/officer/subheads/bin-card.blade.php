@@ -70,7 +70,7 @@
                     </svg>
                 </a>
 
-                <ol class="inline-flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest">
+                <ol class="inline-flex items-center space-x-2 text-s font-black uppercase tracking-widest">
                     <li><a href="{{ route('officer.subheads') }}" class="text-slate-400 hover:text-slate-600 transition-colors">Assigned MDAs</a></li>
                     <li class="text-slate-300">/</li>
                     <li><a href="{{ route('officer.subheads.show', $subhead->mda_id) }}" class="text-slate-400 hover:text-slate-600 transition-colors">{{ $subhead->mda->name }}</a></li>
@@ -113,13 +113,13 @@
             <table class="w-full text-left border-separate border-spacing-0">
                 <thead>
                     <tr class="{{ $themeClasses['bg'] }} transition-colors">
-                        <th class="px-6 py-5 text-[10px] font-black {{ $themeClasses['accent'] }} uppercase tracking-widest border-b {{ $themeClasses['border'] }}">S/N</th>
-                        <th class="px-6 py-5 text-[10px] font-black {{ $themeClasses['accent'] }} uppercase tracking-widest border-b {{ $themeClasses['border'] }}">Date</th>
-                        <th class="px-6 py-5 text-[10px] font-black {{ $themeClasses['accent'] }} uppercase tracking-widest border-b {{ $themeClasses['border'] }}">Reference No.</th>
-                        <th class="px-6 py-5 text-[10px] font-black {{ $themeClasses['accent'] }} uppercase tracking-widest text-right border-b {{ $themeClasses['border'] }}">Amount Released</th>
-                        <th class="px-6 py-5 text-[10px] font-black {{ $themeClasses['accent'] }} uppercase tracking-widest text-right border-b {{ $themeClasses['border'] }}">Cumulative Total</th>
-                        <th class="px-6 py-5 text-[10px] font-black {{ $themeClasses['accent'] }} uppercase tracking-widest text-center border-b {{ $themeClasses['border'] }}">Actions</th>
-                        <th class="px-8 py-5 text-[10px] font-black {{ $themeClasses['accent'] }} uppercase tracking-widest text-right border-b {{ $themeClasses['border'] }} {{ $themeClasses['bg'] }} border-l">Balance</th>
+                        <th class="px-6 py-5 text-s font-black {{ $themeClasses['accent'] }} uppercase tracking-widest border-b {{ $themeClasses['border'] }}">S/N</th>
+                        <th class="px-6 py-5 text-s font-black {{ $themeClasses['accent'] }} uppercase tracking-widest border-b {{ $themeClasses['border'] }}">Date</th>
+                        <th class="px-6 py-5 text-s font-black {{ $themeClasses['accent'] }} uppercase tracking-widest border-b {{ $themeClasses['border'] }}">Reference No.</th>
+                        <th class="px-6 py-5 text-s font-black {{ $themeClasses['accent'] }} uppercase tracking-widest text-right border-b {{ $themeClasses['border'] }}">Amount Released</th>
+                        <th class="px-6 py-5 text-s font-black {{ $themeClasses['accent'] }} uppercase tracking-widest text-right border-b {{ $themeClasses['border'] }}">Cumulative Total</th>
+                        <th class="px-6 py-5 text-s font-black {{ $themeClasses['accent'] }} uppercase tracking-widest text-center border-b {{ $themeClasses['border'] }}">Actions</th>
+                        <th class="px-8 py-5 text-s font-black {{ $themeClasses['accent'] }} uppercase tracking-widest text-right border-b {{ $themeClasses['border'] }} {{ $themeClasses['bg'] }} border-l">Balance</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y {{ $themeClasses['border'] }}">
@@ -138,41 +138,48 @@
 
                         @if(isset($editingReleaseId) && $editingReleaseId === $release->id)
                             {{-- EDIT MODE ROW --}}
-                            <tr class="{{ $themeClasses['bg'] }} transition-colors">
-                                <td class="px-6 py-5 text-xs font-bold {{ $themeClasses['accent'] }}">{{ $loop->iteration }}</td>
+                            <tr class="{{ $themeClasses['bg'] }} transition-colors border-y-2 {{ $themeClasses['border'] }}">
+                                <td class="px-6 py-5 text-sm font-bold {{ $themeClasses['accent'] }}">{{ $loop->iteration }}</td>
+                                
                                 <td class="px-2 py-2">
-                                    <input type="date" wire:model="editForm.release_date" class="w-full bg-white border-none rounded-lg text-xs p-2 focus:ring-2 {{ $themeClasses['ring'] }}">
+                                    <input type="date" wire:model.blur="editForm.release_date" class="w-full bg-white border {{ $themeClasses['border'] }} rounded-lg text-sm p-2 focus:ring-2 {{ $themeClasses['ring'] }} outline-none transition-all">
                                 </td>
+                                
                                 <td class="px-2 py-2">
-                                    <input type="text" wire:model="editForm.reference_no" class="w-full bg-white border-none rounded-lg text-xs p-2 font-bold uppercase focus:ring-2 {{ $themeClasses['ring'] }}">
+                                    <input type="text" wire:model.blur="editForm.reference_no" class="w-full bg-white border {{ $themeClasses['border'] }} rounded-lg text-sm p-2 font-bold uppercase focus:ring-2 {{ $themeClasses['ring'] }} outline-none transition-all">
                                     {{-- NARRATION INPUT (Visible only in edit mode) --}}
-                                    <input type="text" wire:model="editForm.narration" placeholder="Edit narration..." class="w-full mt-1 bg-white border-none rounded-lg text-[10px] p-1.5 focus:ring-2 {{ $themeClasses['ring'] }} opacity-70">
+                                    <input type="text" wire:model.blur="editForm.narration" placeholder="Edit narration..." class="w-full mt-1 bg-white border {{ $themeClasses['border'] }} rounded-lg text-sm p-1.5 focus:ring-2 {{ $themeClasses['ring'] }} opacity-90 outline-none transition-all">
                                 </td>
+                                
                                 <td class="px-2 py-2">
-                                    <input type="number" step="0.01" wire:model="editForm.amount" class="w-full bg-white border-none rounded-lg text-xs p-2 font-bold text-right focus:ring-2 {{ $themeClasses['ring'] }}">
+                                    <input type="number" step="0.01" wire:model.blur="editForm.amount" class="w-full bg-white border {{ $themeClasses['border'] }} rounded-lg text-sm p-2 font-bold text-right focus:ring-2 {{ $themeClasses['ring'] }} outline-none transition-all">
                                 </td>
-                                <td colspan="2" class="px-6 py-4">
+
+                                {{-- Placeholder for Cumulative Total column to maintain alignment --}}
+                                <td class="px-6 py-4 text-center text-slate-400 font-medium text-xs">—</td>
+                                
+                                <td class="px-2 py-2">
                                     <div class="flex justify-center gap-2">
-                                        <button wire:click="updateRelease" class="p-1.5 {{ $themeClasses['button'] }} text-white rounded-lg shadow-md active:scale-90 transition-transform">
+                                        <button type="button" wire:click="updateRelease" class="p-1.5 {{ $themeClasses['button'] }} text-white rounded-lg shadow-md active:scale-90 transition-transform flex items-center justify-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
                                         </button>
-                                        <button wire:click="cancelEdit" class="p-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300">
+                                        <button type="button" wire:click="cancelEdit" class="p-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-colors flex items-center justify-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" /></svg>
                                         </button>
                                     </div>
                                 </td>
                                 <td class="px-8 py-5 border-l {{ $themeClasses['border'] }} {{ $themeClasses['bg'] }}"></td>
                             </tr>
-                        @else
-                            {{-- VIEW MODE ROW --}}
+                        @else                            
+                        {{-- VIEW MODE ROW --}}
                             <tr class="group {{ $themeClasses['bg-hover'] }} transition-colors {{ $release->is_cancelled ? 'bg-rose-50/30' : '' }}">
-                                <td class="px-6 py-5 text-xs font-bold {{ $themeClasses['accent'] }}">{{ $loop->iteration }}</td>
-                                <td class="px-6 py-5 text-xs font-medium {{ $themeClasses['accent'] }}">{{ \Carbon\Carbon::parse($release->release_date)->format('d/m/Y') }}</td>
-                                <td class="px-6 py-5 text-xs font-bold {{ $themeClasses['accent'] }} uppercase">{{ $release->reference_no }}</td>
-                                <td class="px-6 py-5 text-right text-xs font-bold {{ $release->is_cancelled ? 'text-slate-300 line-through' : $themeClasses['accent'] }}">
+                                <td class="px-6 py-5 text-s font-bold {{ $themeClasses['accent'] }}">{{ $loop->iteration }}</td>
+                                <td class="px-6 py-5 text-s font-medium {{ $themeClasses['accent'] }}">{{ \Carbon\Carbon::parse($release->release_date)->format('d/m/Y') }}</td>
+                                <td class="px-6 py-5 text-s font-bold {{ $themeClasses['accent'] }} uppercase">{{ $release->reference_no }}</td>
+                                <td class="px-6 py-5 text-right text-s font-bold {{ $release->is_cancelled ? 'text-slate-300 line-through' : $themeClasses['accent'] }}">
                                     {{ number_format($release->amount, 2) }}
                                 </td>
-                                <td class="px-6 py-5 text-right text-xs font-bold {{ $release->is_cancelled ? 'text-slate-300' : $themeClasses['accent'] }}">
+                                <td class="px-6 py-5 text-right text-s font-bold {{ $release->is_cancelled ? 'text-slate-300' : $themeClasses['accent'] }}">
                                     {{ $release->is_cancelled ? '-' : number_format($currentTotalReleased, 2) }}
                                 </td>
                                 <td class="px-6 py-5 text-center relative">
@@ -199,7 +206,7 @@
                         @endif
                     @empty
                         <tr>
-                            <td colspan="7" class="px-8 py-10 text-center text-[10px] font-black {{ $themeClasses['accent'] }} opacity-40 uppercase tracking-widest">
+                            <td colspan="7" class="px-8 py-10 text-center text-s font-black {{ $themeClasses['accent'] }} opacity-40 uppercase tracking-widest">
                                 No transaction history found.
                             </td>
                         </tr>
@@ -208,21 +215,21 @@
                     {{-- INLINE ENTRY (ADD NEW) --}}
                     <tr class="bg-slate-50/50 border-t-2 {{ $themeClasses['border'] }}">
                         <td class="px-6 py-4 text-center">
-                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white border {{ $themeClasses['border'] }} {{ $themeClasses['accent'] }} text-xs font-black shadow-sm">+</span>
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white border {{ $themeClasses['border'] }} {{ $themeClasses['accent'] }} text-s font-black shadow-sm">+</span>
                         </td>
                         <td class="px-2 py-2">
-                            <input type="date" wire:model="newRelease.release_date" class="w-full bg-white border-none rounded-lg text-xs p-2 focus:ring-2 {{ $themeClasses['ring'] }}">
+                            <input type="date" wire:model="newRelease.release_date" class="w-full bg-white border {{ $themeClasses['border'] }} rounded-lg text-s p-2 focus:ring-2 {{ $themeClasses['ring'] }} outline-none transition-all">
                         </td>
                         <td class="px-2 py-2">
-                            <input type="text" wire:model="newRelease.reference_no" placeholder="REF NO..." class="w-full bg-white border-none rounded-lg text-xs p-2 font-bold uppercase focus:ring-2 {{ $themeClasses['ring'] }} placeholder:opacity-30">
+                            <input type="text" wire:model="newRelease.reference_no" placeholder="REF NO..." class="w-full bg-white border {{ $themeClasses['border'] }} rounded-lg text-s p-2 font-bold uppercase focus:ring-2 {{ $themeClasses['ring'] }} placeholder:opacity-30 outline-none transition-all">
                             {{-- NEW NARRATION FIELD (Hidden from table, but available for posting) --}}
-                            <input type="text" wire:model="newRelease.narration" placeholder="Write Release Narration..." class="w-full mt-1 bg-white border-none rounded-lg text-[10px] p-1.5 focus:ring-2 {{ $themeClasses['ring'] }} placeholder:opacity-90">
+                            <input type="text" wire:model="newRelease.narration" placeholder="Write Release Narration..." class="w-full mt-1 bg-white border {{ $themeClasses['border'] }} rounded-lg text-s p-2 focus:ring-2 {{ $themeClasses['ring'] }} placeholder:opacity-90 outline-none transition-all">
                         </td>
                         <td class="px-2 py-2">
-                            <input type="number" step="0.01" wire:model="newRelease.amount" placeholder="0.00" class="w-full bg-white border-none rounded-lg text-xs p-2 font-bold text-right focus:ring-2 {{ $themeClasses['ring'] }} placeholder:opacity-30">
+                            <input type="number" step="0.01" wire:model="newRelease.amount" placeholder="0.00" class="w-full bg-white border {{ $themeClasses['border'] }} rounded-lg text-s p-2 font-bold text-right focus:ring-2 {{ $themeClasses['ring'] }} placeholder:opacity-30 outline-none transition-all">
                         </td>
                         <td colspan="2" class="px-4 py-2">
-                            <button wire:click="saveNewRelease" class="w-full py-2.5 {{ $themeClasses['button'] }} text-white text-[10px] font-black uppercase rounded-xl shadow-lg active:scale-95 transition-all">
+                            <button wire:click="saveNewRelease" class="w-full py-2.5 {{ $themeClasses['button'] }} text-white text-s font-black uppercase rounded-xl shadow-lg active:scale-95 transition-all">
                                 Post Release
                             </button>
                         </td>

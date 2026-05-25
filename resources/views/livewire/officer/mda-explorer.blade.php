@@ -76,7 +76,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead class="bg-gray-50 text-[10px] uppercase font-black text-emerald-800 tracking-widest">
+                    <thead class="bg-gray-50 text-sm font-bold uppercase font-black text-emerald-800 tracking-widest">
                         <tr>
                             <th class="px-8 py-5">Subhead / Line Item</th>
                             <th class="px-8 py-5">Approved + Additional</th>
@@ -84,7 +84,7 @@
                             <th class="px-8 py-5">Balance Available</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
+                    <tbody class="divide-y divide-gray-100 ">
                         @forelse($filteredSubheads as $sub)
                             @php 
                                 $subTotalProv = $sub->approved_provision + $sub->additional_provision;
@@ -92,25 +92,25 @@
                                 $balance = $subTotalProv - $subSpent; 
                             @endphp
                             <tr class="hover:bg-emerald-50/20 transition-colors group">
-                                <td class="px-8 py-5">
-                                    <div class="font-bold text-emerald-900 group-hover:text-emerald-700 transition-colors">{{ $sub->name }}</div>
-                                    <div class="text-[14px] text-black-400 font-mono tracking-tighter">{{ $sub->subhead_code ?? 'SH-'.$sub->id }}</div>
+                                <td class="px-8 py-5 font-bold">
+                                    <div class="font-bold text-sm text-emerald-900 group-hover:text-emerald-700 transition-colors">{{ $sub->name }}</div>
+                                    <div class="font-bold text-sm text-emerald-900 font-mono tracking-tighter">{{ $sub->subhead_code ?? 'SH-'.$sub->id }}</div>
                                     
                                     {{-- FIX 2: Subhead Description --}}
                                     @if($sub->description)
-                                        <div class="text-[12px] text-slate-500 mt-1 italic leading-tight max-w-xs">
+                                        <div class="text-sm text-slate-500 mt-1 italic leading-tight max-w-xs">
                                             {{ $sub->description }}
                                         </div>
                                     @endif
                                 </td>
-                                <td class="px-8 py-5 font-medium text-gray-600 italic">₦{{ number_format($subTotalProv, 2) }}</td>
+                                <td class="px-8 py-5 font-medium text-gray-600 font-bold">₦{{ number_format($subTotalProv, 2) }}</td>
                                 
                                 <td class="px-8 py-5 font-black text-emerald-800">
                                     ₦{{ number_format($subSpent, 2) }}
                                 </td>
 
                                 <td class="px-8 py-5">
-                                    <span class="px-4 py-1.5 rounded-full text-xs font-black {{ $balance < 0 ? 'bg-red-100 text-red-700 shadow-sm shadow-red-100' : 'bg-yellow-100 text-yellow-800 shadow-sm shadow-yellow-100' }}">
+                                    <span class="px-4 py-4 rounded-full text-m font-black {{ $balance < 0 ? 'bg-red-100 text-red-700 shadow-sm shadow-red-100' : 'bg-yellow-100 text-yellow-800 shadow-sm shadow-yellow-100' }}">
                                         ₦{{ number_format($balance, 2) }}
                                     </span>
                                 </td>

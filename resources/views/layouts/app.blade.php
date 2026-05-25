@@ -149,7 +149,7 @@
 
                         <div x-show="openGroup === 'ops' || isMinimized" x-collapse x-cloak class="mt-1 space-y-1">
                             <x-nav-link href="{{ route('admin.data-extraction') }}" :active="request()->routeIs('admin.data-extraction')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
-                                <i class="fas fa-robot w-5 text-emerald-400"></i> <span x-show="!isMinimized" class="ml-3 text-sm">AI Data Extraction</span>
+                                <i class="fas fa-robot w-5 text-emerald-400"></i> <span x-show="!isMinimized" class="ml-3 text-sm">Data Extractor</span>
                             </x-nav-link>
                             
                             <x-nav-link href="{{ route('admin.budget-upload') }}" :active="request()->routeIs('admin.budget-upload')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
@@ -184,7 +184,7 @@
                             </x-nav-link>
 
                             <x-nav-link href="{{ route('admin.system-logs') }}" :active="request()->routeIs('admin.system-logs')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
-                                <i class="fas fa-fingerprint w-5 text-emerald-500/50"></i> <span x-show="!isMinimized" class="ml-3 text-[11px]">Audit Logs</span>
+                                <i class="fas fa-fingerprint w-5 text-emerald-500/50"></i> <span x-show="!isMinimized" class="ml-3 text-sm">Audit Logs</span>
                             </x-nav-link>
 
                             <x-nav-link href="{{ route('admin.settings') }}" :active="request()->routeIs('admin.settings')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">

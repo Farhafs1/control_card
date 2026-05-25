@@ -31,6 +31,12 @@ use App\Livewire\PerformanceRanking; // Make sure to import the component
 use App\Livewire\ComparativeAnalysis;
 
 /**
+ * ROOT REDIRECT TO LOGIN
+ * Bounces users landing on http://control_card.test directly to the login gate.
+ */
+Route::redirect('/', '/login');
+
+/**
  * AI DIAGNOSTIC ROUTE (STABLE)
  */
 Route::get('/ai-test', function () {
@@ -116,6 +122,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             $headers = ["mda_code", "subhead_code", "release_date", "reference_no", "amount", "narration"];
             return Response::stream(function() use ($headers) {
                 $file = fopen('php://output', 'w');
+                $file = fopen('php://output', 'w');
                 fputcsv($file, $headers);
                 fputcsv($file, ["12345678", "22020101", "2026-03-10", "VCH-001", "500000.00", "Sample Narration"]);
                 fclose($file);
@@ -138,6 +145,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/analytics/performance-ranking', PerformanceRanking::class)
         ->name('analytics.performance');
 
+        Route::post('/sync-records', [ScraperController::class, 'sync'])->name('scraper.sync');
+        Route::get('/sync-progress', [ScraperController::class, 'getProgress'])->name('scraper.progress');
+
     });
 
     // --- OFFICER SECTION ---
@@ -153,6 +163,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             return redirect()->route('officer.dashboard');
         });
 
+        $file = fopen('php://output', 'w');
         Route::get('/explorer/{selectedMdaId?}', \App\Livewire\Officer\MdaExplorer::class)->name('mda-explorer');
     });
 });

@@ -44,45 +44,45 @@
             <table class="w-full text-left border-collapse min-w-[1000px]">
                 <thead>
                     <tr class="bg-slate-50/50">
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap">Date</th>
-                        <th class="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap">Reference</th>
-                        <th class="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap">MDA Name & Code</th>
-                        <th class="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Subhead Narration & Code</th>
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right border-b border-slate-100 whitespace-nowrap">Amount</th>
+                        <th class="px-8 py-5 text-m font-black text-slate-700 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap">Date</th>
+                        <th class="px-6 py-5 text-m font-black text-slate-700 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap">Reference</th>
+                        <th class="px-6 py-5 text-m font-black text-slate-700 uppercase tracking-widest border-b border-slate-100 whitespace-nowrap">MDA Name & Code</th>
+                        <th class="px-6 py-5 text-m font-black text-slate-700 uppercase tracking-widest border-b border-slate-100">Subhead Narration & Code</th>
+                        <th class="px-8 py-5 text-m font-black text-slate-700 uppercase tracking-widest text-right border-b border-slate-100 whitespace-nowrap">Amount</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
                     @forelse($releases as $release)
                         <tr class="hover:bg-slate-50/80 transition-all group">
-                            <td class="px-8 py-6 whitespace-nowrap text-xs font-bold text-slate-700">
+                            <td class="px-8 py-6 whitespace-nowrap text-m font-bold text-slate-700">
                                 {{$release->created_at->format('d M, Y')}}
                             </td>
 
                             <td class="px-6 py-6 min-w-[170px]">
-                                <span class="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-bold text-slate-500 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                                <span class="px-3 py-1 bg-slate-100 rounded-lg text-sm font-bold text-slate-700 group-hover:bg-emerald-600 group-hover:text-white transition-all">
                                     {{$release->reference_no}}
                                 </span>
                             </td>
 
                             <td class="px-6 py-6 min-w-[220px]">
                                 <div class="flex flex-col">
-                                    <span class="text-xs font-bold text-slate-800 leading-tight">{{ $release->mda->name }}</span>
-                                    <span class="text-[10px] font-black text-emerald-600 mt-1 uppercase">{{ $release->mda->mda_code }}</span>
+                                    <span class="text-m font-bold text-slate-800 leading-tight">{{ $release->mda->name }}</span>
+                                    <span class="text-m font-black text-emerald-600 mt-1 uppercase">{{ $release->mda->mda_code }}</span>
                                 </div>
                             </td>
 
                             <td class="px-6 py-6">
                                 <div class="flex flex-col pr-8">
-                                    <span class="text-xs font-medium text-slate-600 leading-relaxed">
+                                    <span class="text-m font-medium text-slate-700 leading-relaxed">
                                         {{$release->subhead->description}}
                                     </span>
-                                    <span class="text-[10px] font-mono text-slate-400 mt-1 uppercase tracking-tighter">{{$release->subhead->subhead_code}}</span>
+                                    <span class="text-m font-black text-emerald-600 mt-1 uppercase">{{$release->subhead->subhead_code}}</span>
                                 </div>
                             </td>
 
                             <td class="px-8 py-6 text-right whitespace-nowrap">
-                                <p class="text-sm font-black text-slate-900 tracking-tighter">₦{{number_format($release->amount, 2)}}</p>
-                                <span class="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-400">{{$release->status}}</span>
+                                <p class="text-m font-black text-slate-900 tracking-tighter">₦{{number_format($release->amount, 2)}}</p>
+                                <span class="text-xs font-black uppercase px-2 py-2 rounded bg-slate-100 text-slate-700">{{$release->status}}</span>
                             </td>
                         </tr>
                     @empty
@@ -90,7 +90,7 @@
                             <td colspan="5" class="py-24 text-center">
                                 <div class="flex flex-col items-center">
                                     <i class="fas fa-search-minus text-slate-200 text-5xl mb-4"></i>
-                                    <p class="text-slate-400 italic text-sm font-medium">No results found for "{{ $search }}".</p>
+                                    <p class="text-slate-700 italic text-m font-medium">No results found for "{{ $search }}".</p>
                                 </div>
                             </td>
                         </tr>

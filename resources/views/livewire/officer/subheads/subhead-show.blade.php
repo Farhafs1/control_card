@@ -43,13 +43,13 @@
                         : 'hover:bg-white/50' 
                     }}"
                 >
-                    <p class="text-[9px] font-black uppercase tracking-tighter {{ $activeCategory === $name ? 'text-emerald-600' : 'text-slate-400' }}">
+                    <p class="text-[14px] font-black uppercase tracking-tighter {{ $activeCategory === $name ? 'text-emerald-600' : 'text-slate-600' }}">
                         @if($name === 'Personnel') Personnel Cost 
                         @elseif($name === 'Overhead') Overhead Cost
                         @elseif($name === 'Capital') Capital Expenditure
                         @else {{ $name }} @endif
                     </p>
-                    <p class="text-sm font-bold {{ $activeCategory === $name ? 'text-slate-900' : 'text-slate-600' }}">
+                    <p class="text-m font-bold {{ $activeCategory === $name ? 'text-slate-900' : 'text-slate-600' }}">
                         ₦{{ number_format($total, 2) }}
                     </p>
                 </button>
@@ -61,33 +61,33 @@
             <table class="w-full text-left border-separate border-spacing-0 relative z-0">
                 <thead class="sticky top-0 z-50">
                     <tr>
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-slate-50">Code</th>
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-slate-50">Subhead Description</th>
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50">Approved</th>
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50">Additional</th>
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50">Total</th>
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center border-b border-slate-100 bg-slate-50">Action</th>
+                        <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest border-b border-slate-100 bg-slate-50">Code</th>
+                        <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest border-b border-slate-100 bg-slate-50">Subhead Description</th>
+                        <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50">Approved</th>
+                        <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50">Additional</th>
+                        <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50">Total</th>
+                        <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest text-center border-b border-slate-100 bg-slate-50">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
                     @forelse($subheads as $subhead)
                         <tr class="hover:bg-emerald-50/20 transition-colors group">
-                            <td class="px-8 py-5 font-mono text-xs text-slate-400">{{ $subhead->subhead_code }}</td>
+                            <td class="px-8 py-5 font-mono font-bold text-m text-slate-700">{{ $subhead->subhead_code }}</td>
                             <td class="px-8 py-5 text-sm font-bold text-slate-800 uppercase tracking-tight">{{ $subhead->description }}</td>
-                            <td class="px-8 py-5 text-right font-mono text-sm text-slate-500">
+                            <td class="px-8 py-5 text-right font-mono font-bold text-m text-slate-700">
                                 {{ number_format($subhead->approved_provision, 2) }}
                             </td>
-                            <td class="px-8 py-5 text-right font-mono text-sm text-emerald-600">
+                            <td class="px-8 py-5 text-right font-mono text-m text-emerald-700">
                                 + {{ number_format($subhead->additional_provision, 2) }}
                             </td>
-                            <td class="px-8 py-5 text-right font-bold text-slate-900 text-sm">
+                            <td class="px-8 py-5 text-right font-bold text-slate-900 text-m">
                                 ₦{{ number_format($subhead->total_budget, 2) }}
                             </td>
                             <td class="px-8 py-5 text-center">
                                 {{-- Link to the Officer version of the Bin Card --}}
                                 <a href="{{ route('officer.subheads.bin-card', $subhead->id) }}" 
                                    wire:navigate
-                                   class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-50 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:bg-emerald-900 hover:text-white transition-all duration-300 shadow-sm"
+                                   class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-100 text-[14px] font-black uppercase tracking-widest text-slate-800 hover:bg-emerald-900 hover:text-white transition-all duration-300 shadow-sm"
                                    title="Open Control Card">
                                     <svg class="w-3.5 h-3.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

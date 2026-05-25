@@ -23,9 +23,19 @@ class Release extends Model
         'amount', 
         'narration',
         'quarter', 
-        'year', // Added to support your comparative analysis logic
+        'year',
         'is_cancelled',
         'cancelled_reason'
+    ];
+
+    /**
+     * Explicit structural casting forces Eloquent to read/write the column 
+     * cleanly as a Carbon date instance, making isDirty() checks completely reliable.
+     */
+    protected $casts = [
+        'release_date' => 'date', // or 'datetime' if your database table tracks hours/seconds
+        'amount'       => 'decimal:2',
+        'is_cancelled' => 'boolean',
     ];
 
     /**
@@ -35,8 +45,8 @@ class Release extends Model
     protected static function booted()
     {
         static::creating(function ($release) {
-            $date = $release->release_date ?? now();
-            $carbonDate = Carbon::parse($date);
+            // Because of the cast, $release->release_date is already a Carbon instance if filled
+            $carbonDate = $release->release_date ? Carbon::parse($release->release_date) : now();
 
             // Automatically assign the quarter if missing
             if (!$release->quarter) {
@@ -50,7 +60,7 @@ class Release extends Model
         });
 
         static::updating(function ($release) {
-            // If the release_date is changed, we must re-calculate year and quarter
+            // This check now functions flawlessly because both are normalized to Carbon structures
             if ($release->isDirty('release_date')) {
                 $carbonDate = Carbon::parse($release->release_date);
                 $release->quarter = ceil($carbonDate->month / 3);

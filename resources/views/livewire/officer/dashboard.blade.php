@@ -13,9 +13,9 @@
                 <i class="fas fa-search-dollar mr-2"></i> Explorer
             </a>
 
-            <a href="{{ route('admin.expenditure.upload') }}" wire:navigate class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-200 flex items-center">
+            <!-- <a href="{{ route('admin.expenditure.upload') }}" wire:navigate class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-200 flex items-center">
                 <i class="fas fa-file-import mr-2"></i> Post Expenditure
-            </a>
+            </a> -->
         </div>
     </div>
 
@@ -87,26 +87,53 @@
                 </div>
             </div>
 
-            {{-- Critical Alerts (Keep as is) --}}
+            {{-- Critical Alerts Component Section --}}
             <div class="space-y-6">
                 <div class="bg-rose-50 p-6 rounded-3xl border border-rose-100 shadow-sm">
-                    <h3 class="text-xs font-black text-rose-700 uppercase mb-4 flex items-center">
+                    <h3 class="text-xs font-black text-rose-700 uppercase mb-4 flex items-center tracking-wider">
                         <i class="fas fa-exclamation-triangle mr-2"></i> Low Balance Alerts
                     </h3>
-                    <div class="space-y-3">
+                    
+                    {{-- Scrollable Container Element --}}
+                    <div class="space-y-3 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-rose-200 scrollbar-track-transparent">
                         @forelse($criticalSubheads as $sub)
-                            <div class="bg-white p-4 rounded-2xl border border-rose-200 shadow-sm hover:translate-x-1 transition-transform">
-                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{{ $sub->subhead_code }}</p>
-                                <p class="text-xs font-black text-slate-800 truncate">{{ $sub->description }}</p>
-                                <div class="flex justify-between items-center mt-2">
-                                    <span class="text-[10px] font-bold text-rose-600">Critical</span>
-                                    {{-- Use officer explorer for details if admin route is restricted --}}
-                                    <a href="{{ route('officer.mda-explorer', ['selectedMdaId' => $sub->mda_id]) }}" wire:navigate class="text-[10px] font-black text-blue-600 hover:underline uppercase">Analyze MDA</a>
+                            <div class="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm hover:translate-x-1 hover:border-rose-300 transition-all duration-200">
+                                {{-- MDA Identification & Code Line --}}
+                                <div class="flex items-center justify-between gap-2 mb-1.5">
+                                    <span class="font-mono text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                        {{ $sub->subhead_code }}
+                                    </span>
+                                    {{-- Target MDA Badge Identification --}}
+                                    <span class="text-[9px] font-black bg-slate-900 text-slate-100 px-2 py-0.5 rounded-md tracking-tight truncate max-w-[150px]" title="{{ $sub->mda->name ?? 'Unknown MDA' }}">
+                                        {{ $sub->mda->name ?? 'Unknown MDA' }}
+                                    </span>
+                                </div>
+
+                                {{-- Vote Description --}}
+                                <p class="text-xs font-black text-slate-800 truncate" title="{{ $sub->description }}">
+                                    {{ $sub->description }}
+                                </p>
+                                
+                                {{-- Action Footers --}}
+                                <div class="flex justify-between items-center mt-3 pt-2 border-t border-slate-50">
+                                    <span class="inline-flex items-center gap-1 text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-md uppercase tracking-wider animate-pulse">
+                                        <span class="w-1 h-1 rounded-full bg-rose-600"></span> Critical
+                                    </span>
+                                    
+                                    <a href="{{ route('officer.mda-explorer', ['selectedMdaId' => $sub->mda_id]) }}" 
+                                    wire:navigate 
+                                    class="inline-flex items-center gap-1 text-[10px] font-black text-blue-600 hover:text-blue-800 hover:underline uppercase tracking-wider transition-colors">
+                                        Analyze MDA 
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </a>
                                 </div>
                             </div>
                         @empty
-                            <div class="text-center py-4">
-                                <p class="text-xs text-slate-500 font-medium">All subheads within limits.</p>
+                            <div class="bg-white/60 border border-dashed border-rose-200 rounded-2xl text-center py-8 px-4">
+                                <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">All subheads within limits</p>
+                                <p class="text-[10px] text-slate-400 mt-0.5">No critical vote balances discovered.</p>
                             </div>
                         @endforelse
                     </div>

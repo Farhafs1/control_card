@@ -20,43 +20,47 @@
             <h3 class="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-6 border-b border-emerald-50 pb-2">
                 {{ $editingUserId ? 'Edit Personnel Records' : 'Create New System Account' }}
             </h3>
-            <form wire:submit.prevent="save" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Full Name</label>
-                    <input type="text" wire:model="name" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
-                    @error('name') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
-                </div>
-                
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Staff ID</label>
-                    <input type="text" wire:model="staff_no" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition font-mono">
-                    @error('staff_no') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
+            <form wire:submit.prevent="save" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Full Name</label>
+                        <input type="text" wire:model.blur="name" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
+                        @error('name') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
+                    </div>
+                    
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Staff ID</label>
+                        <input type="text" wire:model.blur="staff_no" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition font-mono">
+                        @error('staff_no') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Official Email</label>
+                        <input type="email" wire:model.blur="email" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
+                        @error('email') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Account Role</label>
+                        <select wire:model.live="role" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
+                            <option value="officer">Budget Officer</option>
+                            <option value="admin">System Administrator</option>
+                        </select>
+                        @error('role') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">
+                            {{ $editingUserId ? 'Reset Password' : 'Account Password' }}
+                        </label>
+                        <input type="password" wire:model.blur="password" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
+                        @error('password') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
+                    </div>
                 </div>
 
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Official Email</label>
-                    <input type="email" wire:model="email" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
-                    @error('email') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Account Role</label>
-                    <select wire:model="role" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
-                        <option value="officer">Budget Officer</option>
-                        <option value="admin">System Administrator</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">
-                        {{ $editingUserId ? 'Reset Password' : 'Account Password' }}
-                    </label>
-                    <input type="password" wire:model="password" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
-                </div>
-
-                <div class="flex items-end space-x-3">
-                    <button type="button" wire:click="$set('showForm', false)" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold text-xs uppercase hover:bg-slate-200 transition">Cancel</button>
-                    <button type="submit" class="flex-[2] bg-emerald-900 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 transition shadow-lg shadow-emerald-900/20">
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                    <button type="button" wire:click="$set('showForm', false)" class="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase hover:bg-slate-200 transition">Cancel</button>
+                    <button type="submit" class="px-8 py-3 bg-emerald-900 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 transition shadow-lg shadow-emerald-900/20">
                         {{ $editingUserId ? 'Update Account' : 'Confirm & Create' }}
                     </button>
                 </div>
