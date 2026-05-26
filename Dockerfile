@@ -18,5 +18,13 @@ COPY --chown=www-data:www-data . .
 # Install dependencies while bypassing live script execution hooks
 RUN composer install --no-dev --optimize-autoloader --no-scripts
 
+# Switch back to root to configure execution permissions on our startup script
+USER root
+RUN chmod +x /var/www/html/entrypoint.sh
+USER www-data
+
 # Expose standard web traffic port
 EXPOSE 8080
+
+# Override the default startup to use our entrypoint script
+ENTRYPOINT ["/var/www/html/entrypoint.sh"]
