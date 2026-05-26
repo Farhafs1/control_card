@@ -1,14 +1,13 @@
-FROM richarvey/nginx-php-fpm:php8.4-latest
+FROM serversideup/php:8.4-fpm-nginx
 
 # Set the working directory inside the server
-COPY . /var/www/html
+WORKDIR /var/www/html
 
-# Tell the server to target Laravel's public directory
-ENV WEBROOT /var/www/html/public
-ENV APP_ENV production
+# Copy your application code over
+COPY --chown=www-data:www-data . .
 
-# Install dependencies smoothly
+# Run composer installation smoothly for production
 RUN composer install --no-dev --optimize-autoloader
 
-# Set correct server permissions automatically
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+# Expose standard web traffic port
+EXPOSE 8080
