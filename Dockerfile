@@ -8,14 +8,15 @@ USER root
 RUN install-php-extensions gd
 USER www-data
 
-# Force Laravel to build using PostgreSQL variables
-ENV DB_CONNECTION=pgsql
+# Prevent Laravel from trying to boot a live DB connection during build
+ENV DB_CONNECTION=null
+ENV ALL_COMMANDS_IGNORE_DB=true
 
 # Copy your application code over
 COPY --chown=www-data:www-data . .
 
-# Run composer installation smoothly for production
-RUN composer install --no-dev --optimize-autoloader
+# Install dependencies while bypassing live script execution hooks
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
 # Expose standard web traffic port
 EXPOSE 8080
