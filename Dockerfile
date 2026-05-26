@@ -8,6 +8,9 @@ USER root
 RUN install-php-extensions gd
 USER www-data
 
+# Force Laravel to build using PostgreSQL variables
+ENV DB_CONNECTION=pgsql
+
 # Copy your application code over
 COPY --chown=www-data:www-data . .
 
