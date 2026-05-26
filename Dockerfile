@@ -3,6 +3,11 @@ FROM serversideup/php:8.4-fpm-nginx
 # Set the working directory inside the server
 WORKDIR /var/www/html
 
+# Switch to root user temporarily to install system extensions
+USER root
+RUN install-php-extensions gd
+USER www-data
+
 # Copy your application code over
 COPY --chown=www-data:www-data . .
 
