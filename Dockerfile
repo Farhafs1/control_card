@@ -1,4 +1,4 @@
-FROM richarvey/nginx-php-fpm:latest
+FROM richarvey/nginx-php-fpm:latest-php8.4
 
 # Set the working directory inside the server
 COPY . /var/www/html
