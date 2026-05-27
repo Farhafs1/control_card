@@ -22,5 +22,13 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts
 EXPOSE 8080
 
 # --- THE FIX FOR AUTOMATIC MIGRATIONS AND SYSTEM RESETS ---
-# This executes your migrations at runtime, then launches the native webserver engine cleanly.
-# CMD php artisan migrate --force && exec /init
+# Switch to root to copy files into system bin and adjust execution flags
+USER root
+COPY deploy.sh /usr/local/bin/deploy.sh
+RUN chmod +x /usr/local/bin/deploy.sh
+
+# Drop back down to application user security before running the app
+USER www-data
+
+# Set the execution target
+ENTRYPOINT ["/usr/local/bin/deploy.sh"]
