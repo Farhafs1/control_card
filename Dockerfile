@@ -20,12 +20,3 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts
 
 # Expose standard web traffic port
 EXPOSE 8080
-
-# --- THE NATIVE STARTUP FIX ---
-# Switch to root to place our script inside the official initialization folder
-USER root
-COPY deploy.sh /entrypoint.d/99-deploy.sh
-RUN chmod +x /entrypoint.d/99-deploy.sh
-
-# Drop back down to application user security context
-USER www-data
