@@ -23,4 +23,4 @@ EXPOSE 8080
 
 # --- THE FIX FOR AUTOMATIC MIGRATIONS AND SYSTEM RESETS ---
 # This executes your migrations at runtime, then launches the native webserver engine cleanly.
-CMD php artisan migrate --force && exec /init
+# CMD php artisan migrate --force && exec /init
