@@ -12,6 +12,10 @@ USER www-data
 ENV DB_CONNECTION=null
 ENV ALL_COMMANDS_IGNORE_DB=true
 
+# --- THE NGINX PATH OVERRIDE FIX ---
+# Force Render/Nginx to look at the native base templates
+ENV NGINX_CONF_FILE=/etc/nginx/nginx.conf
+
 # Copy your application code over
 COPY --chown=www-data:www-data . .
 
