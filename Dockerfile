@@ -25,6 +25,17 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts
 # Expose standard web traffic port
 EXPOSE 8080
 
+# --- FIX: INSTALL NODE.JS & COMPILE ASSETS ---
+# Switch to root to install Node.js and NPM packages via apt
+USER root
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    npm \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Switch back to non-root application user for safety and file permissions
+USER www-data
+
 # Install Node.js dependencies and compile production assets
 RUN npm install
 RUN npm run build
