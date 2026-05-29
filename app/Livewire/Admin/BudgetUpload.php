@@ -9,7 +9,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Schema; // <--- ADD THIS LINE
+use Illuminate\Support\Facades\Schema;
 
 class BudgetUpload extends Component
 {
@@ -44,11 +44,10 @@ class BudgetUpload extends Component
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
 
-            // Updated to include mda_code from the subhead table itself
             Subhead::with(['mda', 'category'])->chunk(500, function($subheads) use ($file) {
                 foreach ($subheads as $subhead) {
                     fputcsv($file, [
-                        $subhead->mda_code, // Direct from subhead table
+                        $subhead->mda_code, 
                         $subhead->mda->name ?? 'N/A',
                         $subhead->category->type ?? 'N/A',
                         $subhead->subhead_code,
@@ -70,7 +69,6 @@ class BudgetUpload extends Component
     {
         if (auth()->user()->role !== 'admin') return;
 
-        // This works for both MySQL and SQLite in Laravel
         Schema::disableForeignKeyConstraints();
         
         Subhead::truncate();
@@ -101,7 +99,6 @@ class BudgetUpload extends Component
             "Content-Disposition" => "attachment; filename=Global_Budget_Template.csv",
         ]);
     }
-
 
     public function save()
     {
@@ -134,7 +131,6 @@ class BudgetUpload extends Component
                 // 1. Find MDA 
                 $mda = Mda::where('mda_code', $mdaCodeCSV)->first();
                 
-                // Fallback for 10 vs 12 digit codes
                 if (!$mda) {
                     $shortCode = substr($mdaCodeCSV, 0, 10);
                     $mda = Mda::where('mda_code', $shortCode)->first();
@@ -145,33 +141,42 @@ class BudgetUpload extends Component
                     continue; 
                 }
 
-                // 2. Map Category
-                $rawType = strtoupper(trim($row[6]));
-                $type = (strlen($subheadCodeCSV) >= 10) ? 'Capital' : 
-                        (str_starts_with($subheadCodeCSV, '1') ? 'Revenue' : 
-                        (($rawType === 'RECURRENT') ? (str_starts_with($subheadCodeCSV, '21') ? 'Personnel' : 'Overhead') : 
-                        ucfirst(strtolower($rawType))));
+                // 2. EXPLICIT SUBHEAD CODE MAPPING LOGIC (No text-name matching dependancies)
+                $codeLength = strlen($subheadCodeCSV);
+                $type = 'Overhead Cost'; // Safe default fallback
 
-                $category = Category::firstOrCreate(['mda_id' => $mda->id, 'type' => $type]);
+                if ($codeLength > 8) {
+                    // Any code greater than 8 digits is Capital
+                    $type = 'Capital Expenditure';
+                } elseif ($codeLength === 8) {
+                    if (str_starts_with($subheadCodeCSV, '21')) {
+                        $type = 'Personnel Cost';
+                    } elseif (str_starts_with($subheadCodeCSV, '22')) {
+                        $type = 'Overhead Cost';
+                    } elseif (str_starts_with($subheadCodeCSV, '1')) {
+                        $type = 'Revenue';
+                    }
+                }
 
-                // 3. THE "SMART VALIDATION" LOGIC
-                // We include 'approved_provision' in the first array. 
-                // This ensures that items with the same code/name but different amounts 
-                // are treated as separate, valid budget heads (hitting your 2253 goal).
+                // Fetch or save the category structure bound to this MDA
+                $category = Category::firstOrCreate([
+                    'mda_id' => $mda->id, 
+                    'type'   => $type
+                ]);
+
+                // 3. Update or Store Budget Lines safely
                 Subhead::updateOrCreate(
                     [
                         'mda_code'           => $mda->mda_code, 
                         'subhead_code'       => $subheadCodeCSV,
                         'description'        => $descriptionCSV,
                         'fiscal_year'        => $activeYear,
-                        'approved_provision' => $approvedProvisionCSV, // Unique identifier
+                        'approved_provision' => $approvedProvisionCSV, 
                     ],
                     [
                         'mda_id'               => $mda->id, 
                         'category_id'          => $category->id,
                         'additional_provision' => $additionalProvisionCSV,
-                        // We don't reset virement/supplementary to 0 here 
-                        // so that subsequent updates don't wipe existing progress.
                     ]
                 );
 
@@ -181,7 +186,7 @@ class BudgetUpload extends Component
             fclose($file);
             DB::commit();
 
-            $resultMsg = "Successfully synchronized $rowCount budget heads.";
+            $resultMsg = "Successfully synchronized $rowCount budget heads with code-based segment mappings.";
             if ($skippedMdaCount > 0) {
                 $resultMsg .= " Warning: $skippedMdaCount rows skipped because MDA codes weren't found in your system.";
             }
