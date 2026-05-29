@@ -3,13 +3,14 @@
 namespace App\Providers;
 
 use App\Models\User;
-use App\Models\Setting; // Added this
+use App\Models\Setting;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\View; // Added this
-use Illuminate\Support\Facades\Schema; // Added this
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL; // Imported URL facade
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -28,10 +29,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // --- FORCE HTTPS ON RENDER AND PRODUCTION ENVIRONMENTS ---
+        if (config('app.env') === 'production' || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) {
+            URL::forceScheme('https');
+        }
+
         $this->configureDefaults();
 
         // --- GLOBAL SETTINGS LOADER ---
-        // This prevents the "Undefined variable $siteSettings" error in app.blade.php
         if (Schema::hasTable('settings')) {
             $siteSettings = Setting::first() ?? Setting::create([
                 'fiscal_year' => 2026,
