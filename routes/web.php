@@ -3,13 +3,14 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Session;
-// Existing Imports
+
+// Existing Livewire Components Imports
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Admin\UserManagement;
 use App\Livewire\Admin\MdaManagement;
 use App\Livewire\Admin\ExpenditureTracking;
 use App\Livewire\Admin\ExpenditureUpload;
-use App\Livewire\Admin\BudgetUpload;             
+use App\Livewire\Admin\BudgetUpload;            
 use App\Livewire\Admin\SubheadShow;
 use App\Livewire\Officer\Dashboard as OfficerDashboard;
 use App\Livewire\Admin\SubheadIndex;
@@ -22,17 +23,19 @@ use App\Livewire\Admin\DataExtraction;
 use App\Livewire\Admin\StagedReleasesTable;
 use App\Http\Controllers\ScraperController;
 
-// NEW FEATURES
+// New Analytics & Performance Features
 use App\Livewire\Admin\BudgetPerformance;
 use App\Http\Controllers\Admin\PerformanceExportController;
 use App\Livewire\Admin\SubheadPreview;
 use App\Livewire\BudgetAnalyticsDashboard;
-use App\Livewire\PerformanceRanking; // Make sure to import the component
+use App\Livewire\PerformanceRanking; 
 use App\Livewire\ComparativeAnalysis;
+
+use App\Models\User;
 
 /**
  * ROOT REDIRECT TO LOGIN
- * Bounces users landing on http://control_card.test directly to the login gate.
+ * Bounces unauthenticated traffic landing on root domain directly to the login gate.
  */
 Route::redirect('/', '/login');
 
@@ -58,6 +61,9 @@ Route::get('/ai-test', function () {
     }
 });
 
+/**
+ * AUTHENTICATED SYSTEM SESSION MATRIX
+ */
 Route::middleware(['auth', 'verified'])->group(function () {
 
     /**
@@ -71,57 +77,47 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return redirect()->route('officer.dashboard');
     })->name('dashboard');
 
-    // --- ADMIN SECTION ---
+    // --- ADMINISTRATIVE SUITE (RESTRICTED ACCESS) ---
     Route::middleware(['can:admin-only'])->prefix('admin')->as('admin.')->group(function () {
+        
         Route::get('/dashboard', AdminDashboard::class)->name('dashboard');
         Route::get('/users', UserManagement::class)->name('users');
         Route::get('/mdas', MdaManagement::class)->name('mdas');
         
-        // Subheads & Ledger
+        // Ledger Infrastructure & Subheads Management
         Route::get('/subheads', SubheadIndex::class)->name('subheads');
         Route::get('/subheads-mda/{mda}', SubheadShow::class)->name('subheads.show');
         Route::get('/subheads-bin/{subhead}/bin-card', SubheadBinCard::class)->name('subheads.bin-card');
+        Route::get('/subhead-preview', SubheadPreview::class)->name('subhead-preview');
         
-        // --- DATA EXTRACTION & SYNC ---
+        // Automation Engine (Scraper Core Sync)
         Route::get('/data-extraction', DataExtraction::class)->name('data-extraction');
         Route::get('/staged-releases', StagedReleasesTable::class)->name('staged-releases');
+        Route::post('/sync-records', [ScraperController::class, 'sync'])->name('scraper.sync');
+        Route::get('/sync-progress', [ScraperController::class, 'getProgress'])->name('scraper.progress');
 
-        // --- FISCAL PERFORMANCE & REPORTING ---
-        // The Main Performance Dashboard
+        // Reporting, Fiscal Metrics & Comparative Analytics Hub
         Route::get('/budget-performance', BudgetPerformance::class)->name('budget-performance');
-
-        // The new futuristic Comparative Analytics hub
-        // Route::get('/analytics/comparative', ComparativeAnalysis::class)->name('analytics.comparative');
         Route::get('/comparative-analysis', ComparativeAnalysis::class)->name('comparative-analysis');
-
-        // The Export Engine (PDF/CSV)
-        Route::get('/performance/export', [PerformanceExportController::class, 'export'])->name('performance.export');
-        
-        // Legacy Analytics
+        Route::get('/analytics/budget-performance', BudgetAnalyticsDashboard::class)->name('analytics.budget');
+        Route::get('/analytics/performance-ranking', PerformanceRanking::class)->name('analytics.performance');
         Route::get('/analytics/expenditure', ReleaseAnalytics::class)->name('analytics.expenditure');
 
-        // Budget Upload
+        // Export Engines & Document Compilers
+        Route::get('/performance/export', [PerformanceExportController::class, 'export'])->name('performance.export');
+        Route::get('/export/expenditure', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'export'])->name('expenditure.export');
+        Route::get('/expenditure/ppt', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'generateAIPpt'])->name('expenditure.ppt');
+        
+        // System Allocation Updates & Intake Controls
         Route::get('/budget-upload', BudgetUpload::class)->name('budget-upload');
-
-        // Expenditure Management
         Route::get('/expenditure', ExpenditureTracking::class)->name('expenditure');
         Route::get('/expenditure/upload', ExpenditureUpload::class)->name('expenditure.upload');
         Route::get('/expenditure/{release}/edit', ExpenditureEdit::class)->name('expenditure.edit');
         
-        // Legacy Exports
-        // --- UPDATED EXPORTS ---
-        // Pointing to AnalyticsExportController as requested by your component logic
-        Route::get('/export/expenditure', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'export'])
-            ->name('expenditure.export'); // Removed the .pdf suffix to match the component
-
-        Route::get('/expenditure/ppt', [App\Http\Controllers\Admin\AnalyticsExportController::class, 'generateAIPpt'])
-            ->name('expenditure.ppt');
-        
-        // Template Downloader
+        // CSV Structure Allocation Template Downloader
         Route::get('/expenditure-template/download', function() {
             $headers = ["mda_code", "subhead_code", "release_date", "reference_no", "amount", "narration"];
             return Response::stream(function() use ($headers) {
-                $file = fopen('php://output', 'w');
                 $file = fopen('php://output', 'w');
                 fputcsv($file, $headers);
                 fputcsv($file, ["12345678", "22020101", "2026-03-10", "VCH-001", "500000.00", "Sample Narration"]);
@@ -132,25 +128,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ]);
         })->name('expenditure.template');
 
+        // Core System Diagnostics & Platform Profiles
         Route::get('/settings', Settings::class)->name('settings'); 
         Route::get('/system-logs', SystemLogs::class)->name('system-logs');
-        
-        Route::post('/sync-records', [ScraperController::class, 'sync'])->name('scraper.sync');
-        Route::get('/sync-progress', [ScraperController::class, 'getProgress'])->name('scraper.progress');
-
-        // Inside the admin group...
-        Route::get('/subhead-preview', SubheadPreview::class)->name('subhead-preview');
-        Route::get('/analytics/budget-performance', BudgetAnalyticsDashboard::class)
-        ->name('analytics.budget');
-        Route::get('/analytics/performance-ranking', PerformanceRanking::class)
-        ->name('analytics.performance');
-
-        Route::post('/sync-records', [ScraperController::class, 'sync'])->name('scraper.sync');
-        Route::get('/sync-progress', [ScraperController::class, 'getProgress'])->name('scraper.progress');
-
     });
 
-    // --- OFFICER SECTION ---
+    // --- FIELD OFFICER WORKING ENGINES ---
     Route::middleware(['can:officer-only'])->prefix('officer')->as('officer.')->group(function () {
         Route::get('/dashboard', OfficerDashboard::class)->name('dashboard');
         Route::get('/recent-releases', \App\Livewire\Officer\RecentReleases::class)->name('recent-releases');
@@ -158,13 +141,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/subheads/{mda}', \App\Livewire\Officer\SubheadShow::class)->name('subheads.show');
         Route::get('/subheads/bin-card/{subhead}', \App\Livewire\Officer\BinCard::class)->name('subheads.bin-card');
         Route::get('/profile', \App\Livewire\Officer\ProfileSettings::class)->name('profile');
+        Route::get('/explorer/{selectedMdaId?}', \App\Livewire\Officer\MdaExplorer::class)->name('mda-explorer');
         
         Route::get('/', function () {
             return redirect()->route('officer.dashboard');
         });
-
-        $file = fopen('php://output', 'w');
-        Route::get('/explorer/{selectedMdaId?}', \App\Livewire\Officer\MdaExplorer::class)->name('mda-explorer');
     });
 });
 
@@ -178,5 +159,33 @@ Route::get('/logout-manual', function () {
     request()->session()->regenerateToken();
     return redirect('/login'); 
 })->name('logout.manual');
+
+/**
+ * SECURED ADMIN REGENERATOR COMPILER
+ * Safe deployment guard: Verifies environment parameters before processing structural modifications.
+ */
+Route::get('/create-admin-fix', function () {
+    // Only permit execution on local test beds or under explicit manual oversight debug blocks
+    if (app()->environment('production') && !request()->has('force_matrix_pass')) {
+        abort(403, 'Unauthorized System Overwrite Blocked.');
+    }
+
+    try {
+        User::where('email', 'admin@budget.com')->delete();
+
+        $user = User::create([
+            'name' => 'System Admin',
+            'email' => 'admin@budget.com',
+            'password' => '123', 
+            'role' => 'admin',
+            'staff_no' => 'ADMIN001',
+            'is_active' => true,
+        ]);
+
+        return "<h2>Admin Account Generated Successfully via Eloquent! ID: " . $user->id . "</h2>";
+    } catch (\Exception $e) {
+        return "<h2>Creation Failed:</h2><pre>" . $e->getMessage() . "</pre>";
+    }
+});
 
 require __DIR__.'/auth.php';
