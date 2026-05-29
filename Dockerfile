@@ -25,17 +25,17 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts
 # Expose standard web traffic port
 EXPOSE 8080
 
-# --- FIX: INSTALL NODE.JS & COMPILE ASSETS ---
-# Switch to root to install Node.js and NPM packages via apt
+# --- FIX: INSTALL LATEST NODE.JS & COMPILE VITE ASSETS ---
 USER root
-RUN apt-get update && apt-get install -y \
-    nodejs \
-    npm \
+
+# Install curl, clear out old instances, and download NodeSorce 20.x LTS (Recommended for Vite)
+RUN apt-get update && apt-get install -y curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Switch back to non-root application user for safety and file permissions
+# Switch back to non-root application user for file permission mapping
 USER www-data
 
-# Install Node.js dependencies and compile production assets
-RUN npm install
-RUN npm run build
+# Clean install node assets and execute production compilation matrix
+RUN npm ci && npm run build
