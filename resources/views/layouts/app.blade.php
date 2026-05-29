@@ -4,12 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $siteSettings->app_name ?? 'Budget Control System' }} | {{ $siteSettings->state_name ?? 'Katsina State' }}</title>
+    
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght=700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    @livewireStyles
 </head>
 <body class="bg-slate-100 font-sans text-slate-900" 
       x-data="{ 
@@ -26,7 +30,7 @@
 
     <div class="flex h-screen overflow-hidden">
         
-        <div x-show="mobileMenu" @click="mobileMenu = false" class="fixed inset-0 z-20 bg-black/50 lg:hidden"></div>
+        <div x-show="mobileMenu" @click="mobileMenu = false" x-cloak class="fixed inset-0 z-20 bg-black/50 lg:hidden"></div>
 
         <aside 
             :class="{
@@ -39,16 +43,13 @@
             
             <div class="p-6 border-b border-emerald-800/50">
                 <div class="flex flex-col items-center text-center">
-                    <div :class="isMinimized ? 'w-10 h-10' : 'w-16 h-16'" class="bg-white rounded-full p-1 shadow-inner border-2 border-emerald-600 overflow-hidden transition-all duration-300">
+                    <div :class="isMinimized ? 'w-10 h-10' : 'w-16 h-16'" class="w-16 h-16 bg-white rounded-full p-1 shadow-inner border-2 border-emerald-600 overflow-hidden transition-all duration-300">
                         <div class="w-full h-full bg-emerald-50 rounded-full flex items-center justify-center overflow-hidden">
-                            <div class="w-full h-full bg-emerald-50 rounded-full flex items-center justify-center overflow-hidden">
-                                @if($siteSettings && $siteSettings->logo_path)
-                                    <img src="{{ Storage::url($siteSettings->logo_path) }}" class="w-full h-full object-cover">
-                                @else
-                                    {{-- Fallback to the local asset if no database logo is set --}}
-                                    <img src="{{ asset('assets/images/katsina-crest.png') }}" class="w-full h-full object-cover">
-                                @endif
-                            </div>
+                            @if($siteSettings && $siteSettings->logo_path)
+                                <img src="{{ Storage::url($siteSettings->logo_path) }}" class="w-full h-full object-cover">
+                            @else
+                                <img src="{{ asset('assets/images/katsina-crest.png') }}" class="w-full h-full object-cover">
+                            @endif
                         </div>
                     </div>
                     <div x-show="!isMinimized" class="mt-3 transition-opacity duration-300">
@@ -63,9 +64,9 @@
             </div>
 
             <nav class="flex-1 overflow-y-auto py-6 space-y-2 custom-scrollbar overflow-x-hidden" 
-                x-data="{ 
+                 x-data="{ 
                     openGroup: '{{ request()->is('admin/analytics*') || request()->routeIs('analytics.*') ? 'insights' : (request()->is('admin/budget*') || request()->is('admin/subheads*') ? 'ops' : '') }}' 
-                }">
+                 }">
 
                 @if(auth()->user()->role === 'admin')
                     <div class="px-3">
@@ -82,51 +83,29 @@
                                 <span x-show="!isMinimized" class="ml-3 text-sm">Central Dashboard</span>
                             </x-nav-link>
 
-                            <x-nav-link href="{{ route('admin.analytics.budget') }}" 
-                                        :active="request()->routeIs('admin.analytics.budget')" 
-                                        wire:navigate 
-                                        class="flex items-center px-6 py-2 rounded-lg">
+                            <x-nav-link href="{{ route('admin.analytics.budget') }}" :active="request()->routeIs('admin.analytics.budget')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
                                 <i class="fas fa-file-invoice-dollar w-5"></i> 
                                 <span x-show="!isMinimized" class="ml-3 text-sm">Budget Analytics</span>
                             </x-nav-link>
 
-                            <x-nav-link href="{{ route('admin.analytics.performance') }}" 
-                                        :active="request()->routeIs('admin.analytics.performance')"
-                                        wire:navigate 
-                                        class="flex items-center px-6 py-2 rounded-lg">
+                            <x-nav-link href="{{ route('admin.analytics.performance') }}" :active="request()->routeIs('admin.analytics.performance')" wire:navigate class="flex items-center px-6 py-2 rounded-lg">
                                 <i class="fas fa-balance-scale w-5"></i> 
                                 <span x-show="!isMinimized" class="ml-3 text-sm">Performance Ranking</span>
                             </x-nav-link>
 
-                            <!-- Budget Performance Link -->
-                            <x-nav-link href="{{ route('admin.budget-performance') }}" 
-                                        :active="request()->routeIs('admin.budget-performance')" 
-                                        wire:navigate 
-                                        class="flex items-center px-6 py-2 rounded-lg transition-colors duration-200 hover:bg-gray-700 group">
+                            <x-nav-link href="{{ route('admin.budget-performance') }}" :active="request()->routeIs('admin.budget-performance')" wire:navigate class="flex items-center px-6 py-2 rounded-lg transition-colors duration-200 hover:bg-gray-700 group">
                                 <div class="flex items-center w-full">
                                     <i class="fas fa-chart-line w-5 text-center transition-colors duration-200 {{ request()->routeIs('admin.budget-performance') ? 'text-blue-400' : 'text-gray-400 group-hover:text-white' }}"></i>
-                                    <span x-show="!isMinimized" 
-                                        class="ml-3 text-sm font-medium transition-opacity duration-300"
-                                        x-transition:enter="transition ease-out duration-300"
-                                        x-transition:enter-start="opacity-0"
-                                        x-transition:enter-end="opacity-100">
+                                    <span x-show="!isMinimized" class="ml-3 text-sm font-medium transition-opacity duration-300">
                                         Budget Performance
                                     </span>
                                 </div>
                             </x-nav-link>
 
-                            <!-- Comparative Analysis Link -->
-                            <x-nav-link href="{{ route('admin.comparative-analysis') }}" 
-                                        :active="request()->routeIs('admin.comparative-analysis')" 
-                                        wire:navigate 
-                                        class="flex items-center px-6 py-2 rounded-lg transition-colors duration-200 hover:bg-gray-700 group">
+                            <x-nav-link href="{{ route('admin.comparative-analysis') }}" :active="request()->routeIs('admin.comparative-analysis')" wire:navigate class="flex items-center px-6 py-2 rounded-lg transition-colors duration-200 hover:bg-gray-700 group">
                                 <div class="flex items-center w-full">
                                     <i class="fas fa-balance-scale w-5 text-center transition-colors duration-200 {{ request()->routeIs('admin.comparative-analysis') ? 'text-blue-400' : 'text-gray-400 group-hover:text-white' }}"></i>
-                                    <span x-show="!isMinimized" 
-                                        class="ml-3 text-sm font-medium transition-opacity duration-300"
-                                        x-transition:enter="transition ease-out duration-300"
-                                        x-transition:enter-start="opacity-0"
-                                        x-transition:enter-end="opacity-100">
+                                    <span x-show="!isMinimized" class="ml-3 text-sm font-medium transition-opacity duration-300">
                                         Comparative Analysis
                                     </span>
                                 </div>
@@ -192,43 +171,24 @@
                             </x-nav-link>
                         </div>
                     </div>
-
                 @else
-                    <!-- Operations Section for Officers -->
                     <div class="px-6 mb-2 text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em]">Operations</div>
-                    
-                    <!-- Dashboard -->
                     <x-nav-link href="{{ route('officer.dashboard') }}" :active="request()->routeIs('officer.dashboard')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-tachometer-alt w-6"></i> 
-                        <span x-show="!isMinimized" class="ml-3">Dashboard</span>
+                        <i class="fas fa-tachometer-alt w-6"></i> <span x-show="!isMinimized" class="ml-3">Dashboard</span>
                     </x-nav-link>
-
-                    <!-- MDA Explorer -->
                     <x-nav-link href="{{ route('officer.mda-explorer') }}" :active="request()->routeIs('officer.mda-explorer')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-search-location w-6"></i> 
-                        <span x-show="!isMinimized" class="ml-3">MDA Explorer</span>
+                        <i class="fas fa-search-location w-6"></i> <span x-show="!isMinimized" class="ml-3">MDA Explorer</span>
                     </x-nav-link>
-
-                    <!-- Subheads & Ledgers -->
                     <x-nav-link href="{{ route('officer.subheads') }}" :active="request()->routeIs('officer.subheads*')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-file-invoice-dollar w-6"></i> 
-                        <span x-show="!isMinimized" class="ml-3">Subhead Ledgers</span>
+                        <i class="fas fa-file-invoice-dollar w-6"></i> <span x-show="!isMinimized" class="ml-3">Subhead Ledgers</span>
                     </x-nav-link>
-
-                    <!-- Recent Releases -->
                     <x-nav-link href="{{ route('officer.recent-releases') }}" :active="request()->routeIs('officer.recent-releases')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-history w-6"></i> 
-                        <span x-show="!isMinimized" class="ml-3">Recent Releases</span>
+                        <i class="fas fa-history w-6"></i> <span x-show="!isMinimized" class="ml-3">Recent Releases</span>
                     </x-nav-link>
-
                     <div class="my-4 border-t border-slate-800/50"></div>
-
-                    <!-- Account Section -->
                     <div class="px-6 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Account</div>
-                    
                     <x-nav-link href="{{ route('officer.profile') }}" :active="request()->routeIs('officer.profile')" wire:navigate class="flex items-center px-6">
-                        <i class="fas fa-user-cog w-6"></i> 
-                        <span x-show="!isMinimized" class="ml-3">Profile Settings</span>
+                        <i class="fas fa-user-cog w-6"></i> <span x-show="!isMinimized" class="ml-3">Profile Settings</span>
                     </x-nav-link>
                 @endif
             </nav>
@@ -245,8 +205,7 @@
                         </p>
                     </div>
                 </div>
-                <a href="{{ route('logout.manual') }}" 
-                   class="w-full flex items-center justify-center py-2 text-[11px] font-black uppercase tracking-widest bg-rose-500/10 hover:bg-rose-500/20 text-rose-200 rounded-xl transition border border-rose-500/20 group">
+                <a href="{{ route('logout.manual') }}" class="w-full flex items-center justify-center py-2 text-[11px] font-black uppercase tracking-widest bg-rose-500/10 hover:bg-rose-500/20 text-rose-200 rounded-xl transition border border-rose-500/20 group">
                     <i class="fas fa-power-off" :class="isMinimized ? '' : 'mr-2'"></i>
                     <span x-show="!isMinimized">Sign Out</span>
                 </a>
@@ -294,6 +253,8 @@
             </div>
         </main>
     </div>
+
+    @livewireScripts
 
     <style>
         .serif { font-family: 'Playfair Display', serif; }
