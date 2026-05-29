@@ -125,8 +125,10 @@ class BudgetUpload extends Component
                 $mdaCodeCSV = trim($row[0]);
                 $subheadCodeCSV = trim($row[3]);
                 $descriptionCSV = trim($row[4]);
-                $approvedProvisionCSV = (float) str_replace(',', '', $row[5]);
-                $additionalProvisionCSV = (float) str_replace(',', '', $row[7] ?? 0);
+                
+                // Correct Column Indexes based on your exact CSV headers:
+                $approvedProvisionCSV   = (float) str_replace(',', '', $row[5]); // Index 5 is APPROVED_PROVISION
+                $additionalProvisionCSV = (float) str_replace(',', '', $row[6] ?? 0); // Index 6 is ADDITIONAL_PROVISION
 
                 // 1. Find MDA 
                 $mda = Mda::where('mda_code', $mdaCodeCSV)->first();
@@ -141,18 +143,18 @@ class BudgetUpload extends Component
                     continue; 
                 }
 
-                // 2. EXPLICIT SUBHEAD CODE MAPPING LOGIC (No text-name matching dependancies)
+                // 2. EXPLICIT SUBHEAD CODE MAPPING LOGIC 
+                $subheadCodeCSV = preg_replace('/[^0-9]/', '', $subheadCodeCSV); // Ensure numeric-only code processing
                 $codeLength = strlen($subheadCodeCSV);
                 $type = 'Overhead Cost'; // Safe default fallback
 
                 if ($codeLength > 8) {
-                    // Any code greater than 8 digits is Capital
-                    $type = 'Capital Expenditure';
+                    $type = 'Capital';
                 } elseif ($codeLength === 8) {
                     if (str_starts_with($subheadCodeCSV, '21')) {
-                        $type = 'Personnel Cost';
+                        $type = 'Personnel';
                     } elseif (str_starts_with($subheadCodeCSV, '22')) {
-                        $type = 'Overhead Cost';
+                        $type = 'Overhead';
                     } elseif (str_starts_with($subheadCodeCSV, '1')) {
                         $type = 'Revenue';
                     }
@@ -176,7 +178,7 @@ class BudgetUpload extends Component
                     [
                         'mda_id'               => $mda->id, 
                         'category_id'          => $category->id,
-                        'additional_provision' => $additionalProvisionCSV,
+                        'additional_provision' => $additionalProvisionCSV, // Now maps cleanly to 0.00
                     ]
                 );
 
@@ -186,7 +188,7 @@ class BudgetUpload extends Component
             fclose($file);
             DB::commit();
 
-            $resultMsg = "Successfully synchronized $rowCount budget heads with code-based segment mappings.";
+            $resultMsg = "Successfully synchronized $rowCount budget heads with correct allocation mappings.";
             if ($skippedMdaCount > 0) {
                 $resultMsg .= " Warning: $skippedMdaCount rows skipped because MDA codes weren't found in your system.";
             }
