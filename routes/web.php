@@ -30,6 +30,9 @@ use App\Livewire\Admin\SubheadPreview;
 use App\Livewire\BudgetAnalyticsDashboard;
 use App\Livewire\PerformanceRanking; 
 use App\Livewire\ComparativeAnalysis;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+
 
 use App\Models\User;
 
@@ -170,24 +173,22 @@ Route::get('/create-admin-fix', function () {
     }
 
     try {
-        // 1. Force clear any existing records safely via Eloquent
-        User::where('email', 'admin@budget.com')->delete();
+        // 1. Clear out any existing records via direct DB query to avoid observer checks
+        DB::table('users')->where('email', 'admin@budget.com')->delete();
 
-        // 2. Instantiate a fresh model instance instance
-        $user = new User([
+        // 2. Insert directly via Raw DB Query Builder to completely bypass the LogsActivity Trait
+        DB::table('users')->insert([
             'name' => 'System Admin',
             'email' => 'admin@budget.com',
-            'password' => '123', // Your model's 'hashed' cast will automatically encrypt this
+            'password' => Hash::make('123'), // Manually applying Hash::make since we are bypassing the Eloquent caster
             'role' => 'admin',
             'staff_no' => 'ADMIN001',
             'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
-        // 3. THE MAGIC TRICK: Mute model events/traits temporarily to bypass the ActivityLog foreign key crash
-        $user->unsetEventDispatcher();
-        $user->save();
-
-        return "<h2>Admin Account Generated Successfully via Eloquent without triggers! ID: " . $user->id . "</h2>";
+        return "<h2>Admin Account Planted Successfully via Raw Query Builder!</h2>";
     } catch (\Exception $e) {
         return "<h2>Creation Failed:</h2><pre>" . $e->getMessage() . "</pre>";
     }
