@@ -24,3 +24,7 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts
 
 # Expose standard web traffic port
 EXPOSE 8080
+
+# Install Node.js dependencies and compile production assets
+RUN npm install
+RUN npm run build
