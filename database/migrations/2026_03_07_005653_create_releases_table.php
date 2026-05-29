@@ -28,12 +28,17 @@ return new class extends Migration
 
             // Transaction Details
             $table->date('release_date');
-            
-            // Index for fast searching of payment vouchers/reference numbers
-            $table->string('reference_no')->index(); 
-            
+            $table->string('reference_no')->index(); // Payment vouchers/reference numbers
             $table->decimal('amount', 20, 2);
             $table->text('narration')->nullable();
+            
+            // Transaction Cancellation Statuses
+            $table->boolean('is_cancelled')->default(false)->index();
+            $table->text('cancelled_reason')->nullable();
+            
+            // Fiscal Tracking Dimensions
+            $table->integer('quarter')->index()->comment('1, 2, 3, or 4');
+            $table->integer('year')->index()->comment('Fiscal Year e.g. 2026');
             
             $table->timestamps();
 

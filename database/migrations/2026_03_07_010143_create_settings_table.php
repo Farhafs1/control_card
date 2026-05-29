@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
         Schema::create('settings', function (Blueprint $table) {
@@ -13,6 +16,11 @@ return new class extends Migration
             
             // BUDGET CONTROLS & HISTORICAL TAGGING
             $table->year('fiscal_year')->default(2026)->unique();
+            
+            // ANALYSIS AND METRICS (Integrated here right after fiscal_year)
+            $table->decimal('opening_balance', 20, 2)->default(0.00)->comment('Opening Balance for Revenue Analysis');
+            $table->decimal('expected_revenue', 20, 2)->default(0.00)->comment('Expected Revenue Target for Variance Analysis');
+
             $table->boolean('is_current_year')->default(true); // To toggle between active/archived years
             $table->string('budget_status')->default('active'); 
             
@@ -35,6 +43,9 @@ return new class extends Migration
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
         Schema::dropIfExists('settings');
