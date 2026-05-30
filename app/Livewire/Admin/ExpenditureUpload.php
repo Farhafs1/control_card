@@ -55,8 +55,6 @@ class ExpenditureUpload extends Component
      */
     public function saveSingleEntry()
     {
-        // TEMPORARY: Check if the data is actually arriving
-        //dd($this->all());
         $this->validate([
             'mda_id' => 'required|exists:mdas,id',
             'subhead_id' => 'required|exists:subheads,id',
@@ -69,6 +67,11 @@ class ExpenditureUpload extends Component
         $subhead = Subhead::find($this->subhead_id);
         $mda = Mda::find($this->mda_id);
 
+        // Calculate fiscal time coordinates dynamically from the date selection
+        $parsedDate = Carbon::parse($this->release_date);
+        $fiscalYear = $parsedDate->year;
+        $fiscalQuarter = ceil($parsedDate->month / 3);
+
         $data = [
             'mda_id'       => $mda->id,
             'subhead_id'   => $subhead->id,
@@ -77,8 +80,9 @@ class ExpenditureUpload extends Component
             'release_date' => $this->release_date,
             'reference_no' => trim($this->reference_no),
             'amount'       => (float) $this->amount,
-            // Saves your manual note, or uses the description if you left it empty
             'narration'    => trim($this->narration) ?: $subhead->description,
+            'quarter'      => $fiscalQuarter,
+            'year'         => $fiscalYear
         ];
 
         // Check for duplicates (Composite Unique Index Check)
@@ -106,8 +110,9 @@ class ExpenditureUpload extends Component
      */
     public function processImport()
     {
+        // RAISED LIMIT TO 15MB TO PREVENT CHUNKING VALIDATION CRASHES
         $this->validate([
-            'csvFile' => 'required|max:5120|mimes:csv,txt',
+            'csvFile' => 'required|max:15360|mimes:csv,txt',
         ]);
 
         $currentRow = 1; 
@@ -152,18 +157,16 @@ class ExpenditureUpload extends Component
                     throw new \Exception("Budget line '$subheadCodeCSV' not found for MDA '$mdaCodeCSV' at row $currentRow.");
                 }
 
-                // 3. DEFINE ALL VARIABLES FIRST (This prevents the "Undefined" error)
+                // 3. DEFINE ALL VARIABLES FIRST
                 $rawAmount = (float) str_replace([',', ' ', '₦'], '', $record['amount'] ?? 0);
                 $dateValue = trim($record['release_date'] ?? $record['date'] ?? '');
                 $refNo     = trim($record['reference_no'] ?? $record['reference'] ?? '');
 
                 // 4. Robust Date Parsing
                 try {
-                    // If the date contains a "-", it's likely YYYY-MM-DD (your backup format)
                     if (str_contains($dateValue, '-')) {
                         $cleanDate = Carbon::parse($dateValue)->format('Y-m-d');
                     } else {
-                        // Otherwise assume DD/MM/YYYY
                         $cleanDate = Carbon::createFromFormat('d/m/Y', $dateValue)->format('Y-m-d');
                     }
                 } catch (\Exception $e) {
@@ -174,7 +177,12 @@ class ExpenditureUpload extends Component
                     }
                 }
 
-                // 5. NOW perform the Duplicate Check (Variables are now safe to use)
+                // Calculate Quarter and Year for the transaction record line item
+                $transCarbon = Carbon::parse($cleanDate);
+                $rowYear = $transCarbon->year;
+                $rowQuarter = ceil($transCarbon->month / 3);
+
+                // 5. NOW perform the Duplicate Check
                 $isDuplicate = Release::where([
                     'mda_id' => $subhead->mda_id,
                     'subhead_id' => $subhead->id,
@@ -192,6 +200,8 @@ class ExpenditureUpload extends Component
                     'reference_no' => $refNo,
                     'amount' => $rawAmount,
                     'narration' => trim($record['narration'] ?? ''),
+                    'quarter' => $rowQuarter,
+                    'year' => $rowYear
                 ];
 
                 if ($isDuplicate) {
@@ -220,12 +230,21 @@ class ExpenditureUpload extends Component
         }
     }
 
+    /**
+     * Safely wipe expenditures across environments
+     */
     public function truncateExpenditure()
     {
-        DB::statement('PRAGMA foreign_keys = OFF;');
-        Release::truncate();
-        PendingVerification::truncate();
-        DB::statement('PRAGMA foreign_keys = ON;');
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = OFF;');
+            Release::truncate();
+            PendingVerification::truncate();
+            DB::statement('PRAGMA foreign_keys = ON;');
+        } else {
+            // Production PostgreSQL (Render) safe cleanup syntax
+            DB::statement('TRUNCATE TABLE "releases" RESTART IDENTITY CASCADE;');
+            DB::statement('TRUNCATE TABLE "pending_verifications" RESTART IDENTITY CASCADE;');
+        }
 
         session()->flash('message', 'Expenditure ledger and pending flags have been completely cleared.');
         return redirect(request()->header('Referer'));
@@ -251,6 +270,8 @@ class ExpenditureUpload extends Component
                     'reference_no'   => $pending->reference_no,
                     'amount'         => $pending->amount,
                     'narration'      => $pending->narration,
+                    'quarter'        => $pending->quarter,
+                    'year'           => $pending->year
                 ]);
 
                 $pending->delete();
@@ -274,16 +295,6 @@ class ExpenditureUpload extends Component
 
     public function render()
     {
-        // Periodic linking of orphaned records (if any)
-        Release::whereNull('mda_id')->chunk(100, function($releases) {
-            foreach($releases as $release) {
-                $mda = Mda::where('mda_code', $release->mda_code)->first();
-                if ($mda) {
-                    $release->update(['mda_id' => $mda->id]);
-                }
-            }
-        });
-
         return view('livewire.admin.expenditure-upload', [
             'mdas' => Mda::orderBy('mda_code')->get(),
             'recentReleases' => Release::with(['mda'])->latest()->take(10)->get(),
