@@ -275,14 +275,14 @@ class ExpenditureUpload extends Component
     public function render()
     {
         // Periodic linking of orphaned records (if any)
-        Release::whereNull('mda_id')->chunk(100, function($releases) {
-            foreach($releases as $release) {
-                $mda = Mda::where('mda_code', $release->mda_code)->first();
-                if ($mda) {
-                    $release->update(['mda_id' => $mda->id]);
-                }
-            }
-        });
+        // Release::whereNull('mda_id')->chunk(100, function($releases) {
+        //     foreach($releases as $release) {
+        //         $mda = Mda::where('mda_code', $release->mda_code)->first();
+        //         if ($mda) {
+        //             $release->update(['mda_id' => $mda->id]);
+        //         }
+        //     }
+        // });
 
         return view('livewire.admin.expenditure-upload', [
             'mdas' => Mda::orderBy('mda_code')->get(),
