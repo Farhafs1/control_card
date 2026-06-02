@@ -104,31 +104,48 @@
                     </form>
                 </div>
             </div>
+
             {{-- Batch Upload & Recent Activity --}}
             <div class="lg:col-span-7 space-y-6">
                 {{-- CSV Section --}}
                 <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                    <form wire:submit.prevent="processImport" class="flex flex-col md:flex-row items-end gap-4">
-                        <div class="flex-1 w-full" 
-                            x-data="{ isUploading: false, progress: 0 }" 
-                            x-on:livewire-upload-start="isUploading = true"
-                            x-on:livewire-upload-finish="isUploading = false"
-                            x-on:livewire-upload-progress="progress = $event.detail.progress"
+                    <form wire:submit.prevent="processImport" enctype="multipart/form-data" class="flex flex-col gap-4">
+                        
+                        <div class="w-full" 
+                             x-data="{ isUploading: false, progress: 0 }" 
+                             x-on:livewire-upload-start="isUploading = true"
+                             x-on:livewire-upload-finish="isUploading = false"
+                             x-on:livewire-upload-error="isUploading = false"
+                             x-on:livewire-upload-progress="progress = $event.detail.progress"
                         >
                             <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Batch CSV Import</label>
+                            
                             <div class="relative group">
-                                <input type="file" wire:model="csvFile" class="hidden" id="csv_input">
-                                <label for="csv_input" class="flex items-center gap-3 border-2 border-dashed border-slate-200 rounded-2xl p-3 cursor-pointer group-hover:border-emerald-500 transition-all bg-slate-50/50">
+                                <input type="file" wire:model="csvFile" class="hidden" id="csv_input" accept=".csv,.txt">
+                                
+                                <label for="csv_input" class="flex items-center gap-3 border-2 border-dashed border-slate-200 rounded-2xl p-4 cursor-pointer group-hover:border-emerald-500 transition-all bg-slate-50/50">
                                     <svg class="w-5 h-5 text-slate-300 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-width="2"/></svg>
-                                    <span class="text-[10px] font-black text-slate-500 uppercase">{{ $csvFile ? $csvFile->getClientOriginalName() : 'Choose CSV File' }}</span>
+                                    <span class="text-[10px] font-black text-slate-500 uppercase">
+                                        {{ $csvFile ? $csvFile->getClientOriginalName() : 'Choose CSV File' }}
+                                    </span>
                                 </label>
+                            </div>
+
+                            <div x-show="isUploading" class="mt-4 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden" x-cloak>
+                                <div class="bg-emerald-600 h-1.5 transition-all duration-150" x-bind:style="'width: ' + progress + '%'"></div>
+                                <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mt-1">Uploading: <span x-text="progress"></span>%</p>
                             </div>
                         </div>
 
-                        <button type="submit" wire:loading.attr="disabled" wire:target="processImport" class="px-8 py-4 bg-emerald-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50 whitespace-nowrap">
-                            <span wire:loading.remove wire:target="processImport">Process Batch</span>
-                            <span wire:loading wire:target="processImport">Processing...</span>
-                        </button>
+                        <div class="flex justify-end w-full">
+                            <button type="submit" 
+                                    wire:loading.attr="disabled" 
+                                    wire:target="csvFile, processImport" 
+                                    class="px-8 py-4 bg-emerald-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50 whitespace-nowrap">
+                                <span wire:loading.remove wire:target="processImport">Process Batch</span>
+                                <span wire:loading wire:target="processImport">Processing...</span>
+                            </button>
+                        </div>
                     </form>
                     @error('csvFile') <p class="mt-2 text-rose-500 text-[9px] font-black uppercase">{{ $message }}</p> @enderror
                 </div>
@@ -177,7 +194,7 @@
             </div>
         </div>
 
-        {{-- Verification Queue (Stays Full Width) --}}
+        {{-- Verification Queue --}}
         @if($pendingItems->isNotEmpty())
         <div class="mt-8 bg-white rounded-[2.5rem] border-2 border-amber-100 shadow-xl shadow-amber-900/5 overflow-hidden">
             <div class="p-6 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
@@ -230,53 +247,59 @@
         </div>
         @endif
     </div>
+    
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 
     <script>
         document.addEventListener('livewire:initialized', () => {
-            // MDA Initialization
-            const mdaSelect = new TomSelect("#mda-select", {
-                create: false,
-                onChange: function(value) {
-                    @this.set('mda_id', value);
-                }
-            });
+            let mdaSelect, subheadSelect;
 
-            // Subhead Initialization
-            const subheadSelect = new TomSelect("#subhead-select", {
-                valueField: 'id',
-                labelField: 'text',
-                searchField: 'text',
-                options: [],
-                placeholder: 'Select Subhead...',
-                allowEmptyOption: true,
-                onChange: function(value) {
-                    @this.set('subhead_id', value);
-                }
-            });
-
-            // Catch the event and the DATA package
-            @this.on('mda-updated', (event) => {
-                // Livewire 3 event data access
-                const subheads = event.data || event[0].data;
+            const initTomSelect = () => {
+                if(!document.querySelector("#mda-select")) return;
                 
-                console.log('Syncing subheads to UI...', subheads);
+                mdaSelect = new TomSelect("#mda-select", {
+                    create: false,
+                    onChange: function(value) {
+                        @this.set('mda_id', value);
+                    }
+                });
+
+                subheadSelect = new TomSelect("#subhead-select", {
+                    valueField: 'id',
+                    labelField: 'text',
+                    searchField: 'text',
+                    options: [],
+                    placeholder: 'Select Subhead...',
+                    allowEmptyOption: true,
+                    onChange: function(value) {
+                        @this.set('subhead_id', value);
+                    }
+                });
+            };
+
+            // Initial configuration build run
+            initTomSelect();
+
+            @this.on('mda-updated', (event) => {
+                const subheads = event.data || event[0].data;
+                if (!subheadSelect) return;
 
                 subheadSelect.clear();
                 subheadSelect.clearOptions();
 
                 if (subheads && subheads.length > 0) {
                     subheadSelect.addOptions(subheads);
-                    // Force the dropdown to recognize the new items
                     subheadSelect.refreshOptions(false);
+                }
+            });
+
+            // Re-instantiate searchable dropdown inputs seamlessly across Livewire patches
+            Livewire.hook('morph.updated', ({ el }) => {
+                if (document.querySelector('.ts-wrapper') === null) {
+                    initTomSelect();
                 }
             });
         });
     </script>
-
-
-
-
 </div>
-

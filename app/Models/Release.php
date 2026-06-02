@@ -29,11 +29,10 @@ class Release extends Model
     ];
 
     /**
-     * Explicit structural casting forces Eloquent to read/write the column 
-     * cleanly as a Carbon date instance, making isDirty() checks completely reliable.
+     * Explicit structural casting forces Eloquent to read/write columns cleanly.
      */
     protected $casts = [
-        'release_date' => 'date', // or 'datetime' if your database table tracks hours/seconds
+        'release_date' => 'date', 
         'amount'       => 'decimal:2',
         'is_cancelled' => 'boolean',
     ];
@@ -45,26 +44,24 @@ class Release extends Model
     protected static function booted()
     {
         static::creating(function ($release) {
-            // Because of the cast, $release->release_date is already a Carbon instance if filled
-            $carbonDate = $release->release_date ? Carbon::parse($release->release_date) : now();
-
-            // Automatically assign the quarter if missing
-            if (!$release->quarter) {
-                $release->quarter = ceil($carbonDate->month / 3);
-            }
-
-            // Automatically assign the year if missing
-            if (!$release->year) {
-                $release->year = $carbonDate->year;
+            if ($release->release_date) {
+                // Since it is cast to a date, it is already a Carbon object
+                $date = $release->release_date;
+                
+                // Always recalculate to maintain absolute single-source truth
+                $release->year = $date->year;
+                $release->quarter = $date->quarter; // Native Carbon property returns 1-4
             }
         });
 
         static::updating(function ($release) {
-            // This check now functions flawlessly because both are normalized to Carbon structures
-            if ($release->isDirty('release_date')) {
-                $carbonDate = Carbon::parse($release->release_date);
-                $release->quarter = ceil($carbonDate->month / 3);
-                $release->year = $carbonDate->year;
+            // Recalculate if the date changed, OR if year/quarter columns are missing values
+            if ($release->isDirty('release_date') || is_null($release->year) || is_null($release->quarter)) {
+                if ($release->release_date) {
+                    $date = $release->release_date;
+                    $release->year = $date->year;
+                    $release->quarter = $date->quarter;
+                }
             }
         });
     }
@@ -75,25 +72,16 @@ class Release extends Model
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * Each release is posted by a specific User (Budget Officer).
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Each release belongs to one subhead.
-     */
     public function subhead(): BelongsTo
     {
         return $this->belongsTo(Subhead::class);
     }
 
-    /**
-     * Each release belongs to one MDA.
-     */
     public function mda(): BelongsTo
     {
         return $this->belongsTo(Mda::class);
@@ -105,17 +93,11 @@ class Release extends Model
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * SCOPE: Only get active (not cancelled) releases.
-     */
     public function scopeActive($query)
     {
         return $query->where('is_cancelled', false);
     }
 
-    /**
-     * SCOPE: Get releases created by the currently authenticated user.
-     */
     public function scopeMine($query)
     {
         return $query->where('user_id', auth()->id());
@@ -127,20 +109,25 @@ class Release extends Model
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * High-detail logging for financial expenditures.
-     */
     protected static function logAction($model, $action)
     {
         $statusPrefix = $model->is_cancelled ? '[CANCELLED] ' : '';
         $amountFormatted = number_format($model->amount, 2);
         
+        // Dynamic determination of author identity
+        $userId = auth()->id();
+        $executorType = "User ID: " . ($userId ?? 'System');
+        
+        if (app()->runningInConsole()) {
+            $executorType = '[CRON/CLI ENGINE]';
+        }
+
         \App\Models\ActivityLog::create([
-            'user_id' => auth()->id() ?? 1,
+            'user_id' => $userId ?? 1, // Fallback safely to admin record account anchor
             'action' => $action,
             'module' => 'Expenditure',
-            'description' => "{$statusPrefix}{$action} Release: ₦{$amountFormatted} (Ref: {$model->reference_no}) for Subhead: {$model->subhead_code}",
-            'ip_address' => request()->ip(),
+            'description' => "{$statusPrefix}{$action} by {$executorType} Release: ₦{$amountFormatted} (Ref: {$model->reference_no}) for Subhead: {$model->subhead_code}",
+            'ip_address' => app()->runningInConsole() ? '127.0.0.1' : request()->ip(),
         ]);
     }
 }

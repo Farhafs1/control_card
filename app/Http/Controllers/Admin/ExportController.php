@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Release;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Str;
 
 class ExportController extends Controller
 {
@@ -20,7 +21,7 @@ class ExportController extends Controller
                         ->orWhere('narration', 'like', "%{$request->search}%");
                 });
             })
-            // NEW: Direct filter for the quarter column
+            // Direct filter for the quarter column
             ->when($request->quarter, function($q) use ($request) {
                 return $q->where('quarter', $request->quarter);
             })
@@ -35,6 +36,29 @@ class ExportController extends Controller
         $releases = $query->latest('release_date')->get();
         $total = $releases->where('is_cancelled', false)->sum('amount');
 
+        // ----------------------------------------------------
+        // DYNAMIC FILENAME FORMATTING STRATEGY
+        // ----------------------------------------------------
+        // Determine Year from date parameters or default to current year
+        $year = now()->format('Y');
+        if ($request->dateFrom) {
+            $year = \Carbon\Carbon::parse($request->dateFrom)->format('Y');
+        }
+
+        // Determine Quarter tracking labels
+        $quarterLabel = 'Full-Year';
+        if ($request->quarter) {
+            $quarterLabel = 'Q' . $request->quarter;
+        }
+
+        // Output format structure: Expenditure_Report_2026_Q1.pdf
+        $fileName = sprintf(
+            'Expenditure_Report_%s_%s.pdf',
+            $year,
+            $quarterLabel
+        );
+        // ----------------------------------------------------
+
         $pdf = Pdf::loadView('pdf.expenditure-report', [
             'releases' => $releases,
             'total'    => $total,
@@ -42,6 +66,7 @@ class ExportController extends Controller
             'filters'  => $request->all()
         ])->setPaper('a4', 'landscape');
 
-        return $pdf->download('Expenditure_Report_'.now()->format('Y-m-d').'.pdf');
+        // Return PDF download action initialized with the formatted filename string
+        return $pdf->download($fileName);
     }
 }
