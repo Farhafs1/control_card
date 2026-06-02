@@ -69,8 +69,6 @@ class ExpenditureUpload extends Component
 
         // Calculate fiscal time coordinates dynamically from the date selection
         $parsedDate = Carbon::parse($this->release_date);
-        $fiscalYear = $parsedDate->year;
-        $fiscalQuarter = ceil($parsedDate->month / 3);
 
         $data = [
             'mda_id'       => $mda->id,
@@ -81,8 +79,8 @@ class ExpenditureUpload extends Component
             'reference_no' => trim($this->reference_no),
             'amount'       => (float) $this->amount,
             'narration'    => trim($this->narration) ?: $subhead->description,
-            'quarter'      => $fiscalQuarter,
-            'year'         => $fiscalYear
+            'quarter'      => $parsedDate->quarter, // Native Carbon property ensures accuracy (1-4)
+            'year'         => $parsedDate->year
         ];
 
         // Check for duplicates (Composite Unique Index Check)
@@ -179,8 +177,6 @@ class ExpenditureUpload extends Component
 
                 // Calculate Quarter and Year for the transaction record line item
                 $transCarbon = Carbon::parse($cleanDate);
-                $rowYear = $transCarbon->year;
-                $rowQuarter = ceil($transCarbon->month / 3);
 
                 // 5. NOW perform the Duplicate Check
                 $isDuplicate = Release::where([
@@ -200,8 +196,8 @@ class ExpenditureUpload extends Component
                     'reference_no' => $refNo,
                     'amount' => $rawAmount,
                     'narration' => trim($record['narration'] ?? ''),
-                    'quarter' => $rowQuarter,
-                    'year' => $rowYear
+                    'quarter' => $transCarbon->quarter, // Uses native 1-4 calculation cleanly
+                    'year' => $transCarbon->year
                 ];
 
                 if ($isDuplicate) {
@@ -261,6 +257,8 @@ class ExpenditureUpload extends Component
                                 ->first();
 
             try {
+                $parsedDate = Carbon::parse($pending->release_date);
+
                 Release::create([
                     'mda_id'         => $mda->id,
                     'subhead_id'     => $subhead?->id,
@@ -270,8 +268,8 @@ class ExpenditureUpload extends Component
                     'reference_no'   => $pending->reference_no,
                     'amount'         => $pending->amount,
                     'narration'      => $pending->narration,
-                    'quarter'        => $pending->quarter,
-                    'year'           => $pending->year
+                    'quarter'        => $parsedDate->quarter,
+                    'year'           => $parsedDate->year
                 ]);
 
                 $pending->delete();

@@ -43,25 +43,15 @@ class Release extends Model
      */
     protected static function booted()
     {
-        static::creating(function ($release) {
+        // The 'saving' event handles both creating and updating systematically
+        static::saving(function ($release) {
             if ($release->release_date) {
-                // Since it is cast to a date, it is already a Carbon object
-                $date = $release->release_date;
+                // Parse safely whether it is currently a Carbon object or a raw string from a file
+                $date = Carbon::parse($release->release_date);
                 
-                // Always recalculate to maintain absolute single-source truth
+                // Set the absolute single source of truth for dashboard metrics
                 $release->year = $date->year;
-                $release->quarter = $date->quarter; // Native Carbon property returns 1-4
-            }
-        });
-
-        static::updating(function ($release) {
-            // Recalculate if the date changed, OR if year/quarter columns are missing values
-            if ($release->isDirty('release_date') || is_null($release->year) || is_null($release->quarter)) {
-                if ($release->release_date) {
-                    $date = $release->release_date;
-                    $release->year = $date->year;
-                    $release->quarter = $date->quarter;
-                }
+                $release->quarter = $date->quarter; // Returns 1-4 natively
             }
         });
     }
