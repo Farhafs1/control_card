@@ -110,7 +110,7 @@ class ExpenditureUpload extends Component
     {
         // RAISED LIMIT TO 15MB TO PREVENT CHUNKING VALIDATION CRASHES
         $this->validate([
-            'csvFile' => 'required|max:15360|mimes:csv,txt',
+            'csvFile' => 'required|max:25600|mimes:csv,txt',
         ]);
 
         $currentRow = 1; 
