@@ -17,34 +17,47 @@ class BudgetAnalyticsDashboard extends Component
     ];
 
     /**
-     * THE GLOBAL OPTIMIZED HOOK (Computed Property)
-     * Bundles all data arrays to run under a unified cache transaction
+     * THE GLOBAL HOOK (Computed Property)
+     * This ensures Stats, Table, and Rankings update simultaneously 
+     * whenever $this->filters changes.
      */
     public function getAnalyticsDataProperty()
     {
+        // This calls the service method that bundles stats, table, and rankings
         return app(BudgetAnalyticsService::class)->getExcoDashboardState($this->filters);
     }
 
     /**
      * REACTIVE FILTER HOOK
+     * This magic method runs whenever ANY property in $filters changes.
      */
     public function updatedFilters()
     {
-        // Flush computed runtime cache
+        /**
+         * CRITICAL: Clear the computed property cache.
+         * This forces 'getAnalyticsDataProperty' to re-fetch fresh data 
+         * from the service using the NEW filter values.
+         */
         unset($this->analyticsData);
     }
 
-    public function render()
+    public function render(BudgetAnalyticsService $service)
     {
-        // Fetch the unified payload once
-        $payload = $this->analyticsData;
+        // 1. Fetch data from the Computed Property (now guaranteed to be fresh)
+        $data = $this->analyticsData;
+
+        // 2. Fetch Module-specific data
+        $sectorData = $service->getSectoralDeepDive($this->filters['quarter']);
+        
+        $previousQuarter = $this->getPreviousQuarter($this->filters['quarter']);
+        $trends = $service->getQuarterlyTrend($this->filters['quarter'], $previousQuarter);
 
         return view('livewire.budget-analytics-dashboard', [
-            'stats'       => $payload['stats'],
-            'performance' => $payload['table'],
-            'rankings'    => collect($payload['rankings']),
-            'sectors'     => $payload['sectors'],
-            'trends'      => $payload['trends']
+            'stats'       => $data['stats'],
+            'performance' => $data['table'],
+            'rankings'    => collect($data['rankings']),
+            'sectors'     => $sectorData,
+            'trends'      => $trends
         ]);
     }
 
@@ -54,7 +67,6 @@ class BudgetAnalyticsDashboard extends Component
             '2' => '1',
             '3' => '2',
             '4' => '3',
-            'all' => 'all',
             default => 'all'
         };
     }
@@ -62,11 +74,12 @@ class BudgetAnalyticsDashboard extends Component
     public function resetFilters()
     {
         $this->reset('filters');
-        unset($this->analyticsData);
+        unset($this->analyticsData); // Also clear cache on reset
     }
 
     public function downloadPdf(ReportExportService $exportService)
     {
+        // Uses the current fresh state for the export
         $data = $this->analyticsData['table'];
         $stats = $this->analyticsData['stats'];
         $settings = \App\Models\Setting::current();
@@ -77,21 +90,25 @@ class BudgetAnalyticsDashboard extends Component
             echo $exportService->exportToPdf($data, $stats, $settings, $quarterLabel)->output();
         }, "Budget_Report_{$quarterLabel}.pdf");
     }
-
     public function getPerformanceStatus($percentage)
     {
         $quarter = $this->filters['quarter'] ?? 'all';
+
+        // Define what "100% success" looks like for the selected period
         $threshold = match($quarter) {
-            '1'      => 25,
-            '2'      => 50,
-            '3'      => 75,
+            '1'     => 25,  // End of March/April should be ~25%
+            '2'     => 50,
+            '3'     => 75,
             '4', 'all' => 100,
-            default  => 100
+            default => 100
         };
 
-        if ($percentage >= $threshold) {
+        // Calculate how far we are from the period's goal
+        $performanceRatio = $percentage; 
+
+        if ($performanceRatio >= $threshold) {
             return ['label' => 'On Track', 'color' => 'emerald'];
-        } elseif ($percentage >= ($threshold * 0.7)) {
+        } elseif ($performanceRatio >= ($threshold * 0.7)) {
             return ['label' => 'Fair', 'color' => 'amber'];
         } else {
             return ['label' => 'Low', 'color' => 'rose'];
