@@ -25,10 +25,8 @@ class BudgetAnalyticsService
     /**
      * THE QUERY ENGINE (OPTIMIZED FOR PRODUCTION)
      *
-     * Key changes vs. original:
-     *  - select() restricts columns fetched from subheads (avoids SELECT *)
-     *  - JOIN on mdas replaces ->with('mda') to eliminate the N+1 eager-load
-     *  - mda sector is read from the joined column, not from a relationship accessor
+     * Fixed table-aliasing subquery bugs by retaining the native table name ('subheads').
+     * Retains production optimizations: eliminates SELECT * and eliminates the N+1 eager-load.
      */
     public function getFilteredPerformance($quarter = 'all', $type = null, $category = null, $groupBy = 'category', $year = null)
     {
@@ -36,27 +34,26 @@ class BudgetAnalyticsService
         $settings = \App\Models\Setting::current();
 
         $query = Subhead::select([
-                's.id',
-                's.subhead_code',
-                's.fiscal_year',
-                's.approved_provision',
-                's.virement_provision',
-                's.supplementary_provision',
-                's.additional_provision',
+                'subheads.id',
+                'subheads.subhead_code',
+                'subheads.fiscal_year',
+                'subheads.approved_provision',
+                'subheads.virement_provision',
+                'subheads.supplementary_provision',
+                'subheads.additional_provision',
                 // Pull sector directly from the join — avoids the ->mda->sector N+1 call
                 'mdas.sector as mda_sector',
             ])
-            ->from('subheads as s')
-            ->join('mdas', 'mdas.id', '=', 's.mda_id')
-            ->where('s.fiscal_year', $year)
+            ->join('mdas', 'mdas.id', '=', 'subheads.mda_id')
+            ->where('subheads.fiscal_year', $year)
             ->when($category, function ($q) use ($category) {
                 if ($category === 'Expenditure_Capital') {
-                    return $q->whereRaw('LENGTH(s.subhead_code) = 10');
+                    return $q->whereRaw('LENGTH(subheads.subhead_code) = 10');
                 }
                 $prefix = $this->getPrefixForCategory($category);
                 if ($prefix) {
-                    return $q->where('s.subhead_code', 'like', $prefix . '%')
-                             ->whereRaw('LENGTH(s.subhead_code) = 8');
+                    return $q->where('subheads.subhead_code', 'like', $prefix . '%')
+                             ->whereRaw('LENGTH(subheads.subhead_code) = 8');
                 }
                 return $q;
             })
@@ -169,7 +166,7 @@ class BudgetAnalyticsService
      */
     public function getSummaryStats($quarter = 'all')
     {
-        $allData       = $this->getFilteredPerformance($quarter);
+        $allData        = $this->getFilteredPerformance($quarter);
         $openingBalance = (float) ($this->settings->opening_balance ?? 0);
 
         $revenue     = $allData->where('type', 'Revenue');
@@ -214,7 +211,7 @@ class BudgetAnalyticsService
      */
     public function getQuarterlyTrend($currentQ, $previousQ)
     {
-        $current  = $this->getSummaryStats($currentQ);
+        $current = $this->getSummaryStats($currentQ);
         $previous = $this->getSummaryStats($previousQ);
 
         return [
@@ -244,7 +241,6 @@ class BudgetAnalyticsService
 
         $analysis = [];
         foreach ($groups as $level1Name => $level2Categories) {
-            // display_label has underscores replaced with spaces already
             $subset = $allData->whereIn('display_label', $level2Categories);
             $budget = $subset->sum('budget');
             $actual = $subset->sum('actual');
@@ -561,10 +557,6 @@ class BudgetAnalyticsService
 
     /**
      * OPTIMIZED: getComparativeRankings
-     *
-     * Changed from strftime('%m', release_date) date math to WHERE quarter = ?
-     * This matches the indexed `quarter` integer column used everywhere else,
-     * works identically on SQLite (local) and MySQL (production), and is index-friendly.
      */
     public function getComparativeRankings($quarter = 'all')
     {
@@ -580,7 +572,6 @@ class BudgetAnalyticsService
                 COALESCE(subheads.supplementary_provision, 0) +
                 COALESCE(subheads.additional_provision, 0)
             ) as total_budget')
-            // Use the indexed `quarter` integer column instead of computed strftime expressions
             ->when($quarter !== 'all', fn($q) => $q->where('releases.quarter', (int) $quarter))
             ->groupBy('mdas.mda_code', 'mdas.name')
             ->get()
@@ -607,10 +598,6 @@ class BudgetAnalyticsService
 
     /**
      * OPTIMIZED: getRankingsBySubheadLogic
-     *
-     * Changed quarterly filter from strftime('%m', r.release_date) to
-     * WHERE r.quarter = ? — uses the indexed integer column, works on
-     * both SQLite and MySQL without engine-specific date functions.
      */
     public function getRankingsBySubheadLogic(array $constraints): Collection
     {
@@ -645,7 +632,6 @@ class BudgetAnalyticsService
             }
         }
 
-        // Use indexed integer `quarter` column instead of strftime date expressions
         if ($quarter !== 'all') {
             $query->where('r.quarter', (int) $quarter);
         }
@@ -662,7 +648,7 @@ class BudgetAnalyticsService
     }
 
     /**
-     * getComparativeData — unchanged (delegates to getPeriodStats)
+     * getComparativeData
      */
     public function getComparativeData(array $pA, array $pB, string $type): Collection
     {
@@ -693,10 +679,6 @@ class BudgetAnalyticsService
 
     /**
      * OPTIMIZED: getPeriodStats
-     *
-     * Replaced whereYear('r.release_date', ...) + strftime quarter math with
-     * WHERE fiscal_year = ? and WHERE quarter = ? — both are indexed integers
-     * that work on SQLite and MySQL without date parsing overhead.
      */
     private function getPeriodStats(array $period, string $type): Collection
     {
@@ -707,11 +689,9 @@ class BudgetAnalyticsService
             ->selectRaw('SUM(r.amount) as total_actual')
             ->selectRaw('CASE WHEN SUM(s.approved_provision) > 0 THEN (SUM(r.amount) / SUM(s.approved_provision)) * 100 ELSE 0 END as performance')
             ->where('r.is_cancelled', false)
-            // Use fiscal_year integer column instead of whereYear() on a date column
             ->where('s.fiscal_year', $period['year']);
 
         if ($period['quarter'] !== 'all') {
-            // Use indexed `quarter` integer column instead of computed strftime expression
             $query->where('r.quarter', (int) $period['quarter']);
         }
 
@@ -720,18 +700,11 @@ class BudgetAnalyticsService
 
     /**
      * OPTIMIZED: getMultiPeriodData
-     *
-     * Original ran one DB query PER MDA PER period inside a nested loop.
-     * Now runs ONE query per period using conditional aggregation (SUM CASE WHEN),
-     * then joins the results in PHP — reduces DB round-trips from N*P to P.
-     *
-     * N = number of MDAs, P = number of periods selected.
      */
     public function getMultiPeriodData(array $periods, string $type): Collection
     {
         $mdas = DB::table('mdas')->select('id', 'name', 'mda_code')->get()->keyBy('id');
 
-        // Build one query per period, fetch all MDAs at once, then pivot in PHP
         $periodTotals = [];
         foreach ($periods as $index => $p) {
             $query = DB::table('releases as r')
@@ -745,7 +718,6 @@ class BudgetAnalyticsService
                 $query->where('r.quarter', (int) $p['quarter']);
             }
 
-            // Index by mda_id for O(1) lookup when building the result below
             $periodTotals[$index] = $query->groupBy('r.mda_id')->get()->keyBy('mda_id');
         }
 
@@ -756,7 +728,7 @@ class BudgetAnalyticsService
                 $values["p_$index"] = (float) ($periodTotals[$index][$mda->id]->total ?? 0);
             }
 
-            $mda->values             = $values;
+            $mda->values              = $values;
             $first                   = reset($values);
             $last                    = end($values);
             $mda->total_variance     = $last - $first;
