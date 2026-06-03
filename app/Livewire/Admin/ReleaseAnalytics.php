@@ -246,9 +246,9 @@ class ReleaseAnalytics extends Component
             ->select('mdas.name as label', DB::raw('SUM(releases.amount) as total'))
             ->groupBy('mdas.name')->orderBy('total', 'desc')->limit(10)->get();
 
-        $statusData = (clone $baseQuery)
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')->get();
+        // $statusData = (clone $baseQuery)
+        //     ->select('status', DB::raw('count(*) as count'))
+        //     ->groupBy('status')->get();
 
         // 7. Dynamic Budget (Burn Rate)
         $approvedBudget = \App\Models\Subhead::query()
@@ -274,7 +274,7 @@ class ReleaseAnalytics extends Component
             'trends'   => ['labels' => ['Q1', 'Q2', 'Q3', 'Q4'], 'values' => $trendValues],
             'sectors'  => $sectorChartData,
             'mdas'     => $mdaChartData,
-            'status'   => $statusData,
+            // 'status'   => $statusData,
         ]);
 
         return view('livewire.admin.release-analytics', [
@@ -283,7 +283,7 @@ class ReleaseAnalytics extends Component
             'categories'      => $categoryOptions, // Uses your manual list now
             'sectorChartData' => $sectorChartData, 
             'mdaChartData'    => $mdaChartData,
-            'statusData'      => $statusData,
+            // 'statusData'      => $statusData,
             'burnRate'        => $burnRate,
             'trendLabels'     => ['Q1', 'Q2', 'Q3', 'Q4'],
             'trendValues'     => $trendValues,
@@ -431,13 +431,13 @@ class ReleaseAnalytics extends Component
         ];
     }
 
-    public function getStatusData()
-    {
-        $baseQuery = Release::query();
-        $this->applyFilters($baseQuery);
+    // public function getStatusData()
+    // {
+    //     $baseQuery = Release::query();
+    //     $this->applyFilters($baseQuery);
 
-        return $baseQuery->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->get();
-    }
+    //     return $baseQuery->select('status', DB::raw('count(*) as count'))
+    //         ->groupBy('status')
+    //         ->get();
+    // }
 }
