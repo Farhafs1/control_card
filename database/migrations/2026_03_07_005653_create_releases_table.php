@@ -14,13 +14,13 @@ return new class extends Migration
         Schema::create('releases', function (Blueprint $table) {
             $table->id();
             
-            // Core Identifiers (Strings for codes, IDs for database links)
+            // Core Identifiers
             $table->string('mda_code')->index();
             $table->string('subhead_code')->index();
             $table->foreignId('mda_id')->constrained()->onDelete('cascade');
             $table->foreignId('subhead_id')->constrained()->onDelete('cascade');
             
-            // Integrated User ID (Tracking who posted the release)
+            // Integrated User ID
             $table->foreignId('user_id')
                 ->nullable() 
                 ->constrained()
@@ -28,19 +28,25 @@ return new class extends Migration
 
             // Transaction Details
             $table->date('release_date');
-            $table->string('reference_no')->index(); // Payment vouchers/reference numbers
+            $table->string('reference_no')->index();
             $table->decimal('amount', 20, 2);
             $table->text('narration')->nullable();
             
             // Transaction Cancellation Statuses
-            $table->boolean('is_cancelled')->default(false)->index();
+            $table->boolean('is_cancelled')->default(false);
             $table->text('cancelled_reason')->nullable();
             
             // Fiscal Tracking Dimensions
-            $table->integer('quarter')->index()->comment('1, 2, 3, or 4');
-            $table->integer('year')->index()->comment('Fiscal Year e.g. 2026');
+            $table->integer('quarter')->comment('1, 2, 3, or 4');
+            $table->integer('year')->comment('Fiscal Year e.g. 2026');
             
             $table->timestamps();
+
+            /**
+             * OPTIMIZED ANALYTICS INDEX
+             * Covering index for the Parallel Engine's core filtering logic.
+             */
+            $table->index(['is_cancelled', 'quarter', 'subhead_id'], 'idx_releases_analytics_lookup');
 
             /**
              * COMPOSITE UNIQUE INDEX
