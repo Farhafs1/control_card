@@ -39,9 +39,9 @@ USER www-data
 RUN npm ci && npm run build
 
 # --- ADD THESE LINES AT THE VERY BOTTOM ---
-USER root
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-USER www-data
+# USER root
+# COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+# RUN chmod +x /usr/local/bin/entrypoint.sh
+# USER www-data
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
