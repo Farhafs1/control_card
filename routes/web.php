@@ -102,7 +102,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Reporting, Fiscal Metrics & Comparative Analytics Hub
         Route::get('/budget-performance', BudgetPerformance::class)->name('budget-performance');
         Route::get('/comparative-analysis', ComparativeAnalysis::class)->name('comparative-analysis');
-        Route::get('/analytics/budget-performance', BudgetAnalyticsDashboard::class)->name('analytics.budget');
+
+        // UPDATED: Primary Analytics Hub now routed to the Parallel Engine (V2)
+        Route::get('/analytics/budget-performance', \App\Livewire\ParallelAnalyticsDashboard::class)
+            ->name('analytics.budget');
+
+        // Existing auxiliary analytics remain available for specialized tracking
         Route::get('/analytics/performance-ranking', PerformanceRanking::class)->name('analytics.performance');
         Route::get('/analytics/expenditure', ReleaseAnalytics::class)->name('analytics.expenditure');
 
@@ -134,9 +139,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Core System Diagnostics & Platform Profiles
         Route::get('/settings', Settings::class)->name('settings'); 
         Route::get('/system-logs', SystemLogs::class)->name('system-logs');
+
+        Route::get('/admin/analytics/budget-performance-v2', \App\Livewire\ParallelAnalyticsDashboard::class)
+        ->middleware(['auth', 'can:admin-only']);
     });
 
-    // --- FIELD OFFICER WORKING ENGINES ---
+    // --- BUDGET OFFICER WORKING ENGINES ---
     Route::middleware(['can:officer-only'])->prefix('officer')->as('officer.')->group(function () {
         Route::get('/dashboard', OfficerDashboard::class)->name('dashboard');
         Route::get('/recent-releases', \App\Livewire\Officer\RecentReleases::class)->name('recent-releases');
