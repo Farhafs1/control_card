@@ -69,6 +69,8 @@ class ExpenditureUpload extends Component
 
         // Calculate fiscal time coordinates dynamically from the date selection
         $parsedDate = Carbon::parse($this->release_date);
+        $fiscalYear = $parsedDate->year;
+        $fiscalQuarter = ceil($parsedDate->month / 3);
 
         $data = [
             'mda_id'       => $mda->id,
@@ -79,8 +81,8 @@ class ExpenditureUpload extends Component
             'reference_no' => trim($this->reference_no),
             'amount'       => (float) $this->amount,
             'narration'    => trim($this->narration) ?: $subhead->description,
-            'quarter'      => $parsedDate->quarter, // Native Carbon property ensures accuracy (1-4)
-            'year'         => $parsedDate->year
+            'quarter'      => $fiscalQuarter,
+            'year'         => $fiscalYear
         ];
 
         // Check for duplicates (Composite Unique Index Check)
@@ -110,7 +112,7 @@ class ExpenditureUpload extends Component
     {
         // RAISED LIMIT TO 15MB TO PREVENT CHUNKING VALIDATION CRASHES
         $this->validate([
-            'csvFile' => 'required|max:25600|mimes:csv,txt',
+            'csvFile' => 'required|max:15360|mimes:csv,txt',
         ]);
 
         $currentRow = 1; 
@@ -177,6 +179,8 @@ class ExpenditureUpload extends Component
 
                 // Calculate Quarter and Year for the transaction record line item
                 $transCarbon = Carbon::parse($cleanDate);
+                $rowYear = $transCarbon->year;
+                $rowQuarter = ceil($transCarbon->month / 3);
 
                 // 5. NOW perform the Duplicate Check
                 $isDuplicate = Release::where([
@@ -196,8 +200,8 @@ class ExpenditureUpload extends Component
                     'reference_no' => $refNo,
                     'amount' => $rawAmount,
                     'narration' => trim($record['narration'] ?? ''),
-                    'quarter' => $transCarbon->quarter, // Uses native 1-4 calculation cleanly
-                    'year' => $transCarbon->year
+                    'quarter' => $rowQuarter,
+                    'year' => $rowYear
                 ];
 
                 if ($isDuplicate) {
@@ -217,7 +221,7 @@ class ExpenditureUpload extends Component
             
             session()->flash('message', $msg);
             $this->reset('csvFile');
-            return redirect(request()->header('Referer'));
+            //return redirect(request()->header('Referer'));
 
         } catch (\Exception $e) {
             if (DB::transactionLevel() > 0) DB::rollBack();
@@ -243,7 +247,7 @@ class ExpenditureUpload extends Component
         }
 
         session()->flash('message', 'Expenditure ledger and pending flags have been completely cleared.');
-        return redirect(request()->header('Referer'));
+        //return redirect(request()->header('Referer'));
     }
 
     public function confirmItem($id)
@@ -257,8 +261,6 @@ class ExpenditureUpload extends Component
                                 ->first();
 
             try {
-                $parsedDate = Carbon::parse($pending->release_date);
-
                 Release::create([
                     'mda_id'         => $mda->id,
                     'subhead_id'     => $subhead?->id,
@@ -268,8 +270,8 @@ class ExpenditureUpload extends Component
                     'reference_no'   => $pending->reference_no,
                     'amount'         => $pending->amount,
                     'narration'      => $pending->narration,
-                    'quarter'        => $parsedDate->quarter,
-                    'year'           => $parsedDate->year
+                    'quarter'        => $pending->quarter,
+                    'year'           => $pending->year
                 ]);
 
                 $pending->delete();

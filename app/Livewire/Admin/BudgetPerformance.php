@@ -2,23 +2,29 @@
 
 namespace App\Livewire\Admin;
 
-use App\Models\{Category, Subhead, Release, Setting, Mda};
+use App\Models\{Subhead, Release, Setting, Mda};
 use App\Services\BudgetPerformanceService;
 use Livewire\{Component, Attributes\Computed};
 
 class BudgetPerformance extends Component
 {
-    public $categoryId = null; // Stores master type (e.g., 'OVERHEAD')
+    public $categoryId = null; // Stores master type keyword (e.g., 'OVERHEAD')
     public $reportType = 'executive';
-    public $quarter = 'all'; // Change from 1 to 'all' 
+    public $quarter = 'all'; 
     
     protected $service;
 
+    /**
+     * Dependency injection via boot method.
+     */
     public function boot(BudgetPerformanceService $service)
     {
         $this->service = $service;
     }
 
+    /**
+     * Computed property to map Master Types to display labels.
+     */
     #[Computed]
     public function masterCategories()
     {
@@ -30,6 +36,9 @@ class BudgetPerformance extends Component
         ];
     }
 
+    /**
+     * Resets dependent filters when report view swaps.
+     */
     public function updatedReportType()
     {
         if ($this->reportType !== 'detailed') {
@@ -37,6 +46,9 @@ class BudgetPerformance extends Component
         }
     }
 
+    /**
+     * Livewire Render Lifecycle Method.
+     */
     public function render()
     {
         $settings = Setting::first();
@@ -57,26 +69,57 @@ class BudgetPerformance extends Component
     }
 
     /**
-     * Helper to resolve Master Type keywords to Category IDs
+     * Resolves Master Type keywords into array of Subhead IDs based on standard Chart of Accounts rules.
+     * * @param string $masterType
+     * @return array
      */
-    private function getCategoryIds($masterType)
+    private function getSubheadIds($masterType)
     {
-        $keywords = ($masterType === 'OVERHEAD') ? ['OVERHEAD', 'RECURRENT'] : [$masterType];
-        
-        return Category::where(function($q) use ($keywords) {
-            foreach ($keywords as $key) {
-                $q->orWhere('type', 'LIKE', '%' . $key . '%');
-            }
-        })->pluck('id')->toArray();
+        // Adjust this to match your actual schema (e.g., 'subhead_code', 'item_code')
+        $codeColumn = 'subhead_code'; 
+
+        $query = Subhead::query();
+
+        if ($masterType === 'CAPITAL') {
+            // Safe binding expression avoiding string parsing bugs across engines
+            return $query->whereRaw("LENGTH({$codeColumn}) > 8")->pluck('id')->toArray();
+        }
+
+        $query->whereRaw("LENGTH({$codeColumn}) = 8");
+
+        switch ($masterType) {
+            case 'REVENUE':
+                $query->where($codeColumn, 'LIKE', '1%');
+                break;
+
+            case 'PERSONNEL':
+                $query->where($codeColumn, 'LIKE', '21%');
+                break;
+
+            case 'OVERHEAD':
+                $query->where($codeColumn, 'LIKE', '22%');
+                break;
+                
+            default:
+                return [];
+        }
+
+        return $query->pluck('id')->toArray();
     }
 
     /**
-     * Helper to get Provision sums for a set of categories
+     * Computes provision data aggregates by subhead IDs.
+     * * @param array $subheadIds
+     * @return array
      */
-    private function getProvisionData($categoryIds)
+    private function getProvisionData($subheadIds)
     {
-        $approved = Subhead::whereIn('category_id', $categoryIds)->sum('approved_provision');
-        $additional = Subhead::whereIn('category_id', $categoryIds)->sum('additional_provision');
+        if (empty($subheadIds)) {
+            return ['approved' => 0, 'additional' => 0, 'total' => 0];
+        }
+
+        $approved = Subhead::whereIn('id', $subheadIds)->sum('approved_provision');
+        $additional = Subhead::whereIn('id', $subheadIds)->sum('additional_provision');
         
         return [
             'approved'   => $approved,
@@ -85,33 +128,38 @@ class BudgetPerformance extends Component
         ];
     }
 
+    /**
+     * Fetches detailed grouped breakdown filtered and summarized by MDA allocations.
+     */
     private function getDetailedGroupedReport($year, $quarter, $masterType)
     {
-        $categoryIds = $this->getCategoryIds($masterType);
-
-        // Standardize 'all' to 4 for the comparison logic
+        $subheadIds = $this->getSubheadIds($masterType);
         $numericQuarter = ($quarter === 'all') ? 4 : (int)$quarter;
 
-        return Mda::with(['subheads' => function($q) use ($categoryIds, $numericQuarter, $quarter) {
-            $q->whereIn('category_id', $categoryIds)
+        if (empty($subheadIds)) {
+            return collect();
+        }
+
+        return Mda::with(['subheads' => function($q) use ($subheadIds, $numericQuarter, $quarter) {
+            $q->whereIn('id', $subheadIds)
             ->withSum(['releases as releases_sum_amount' => function($sq) use ($numericQuarter, $quarter) {
-                
                 if ($quarter === 'all') {
-                    // For "All", sum every release from Q1 to Q4
                     $sq->where('quarter', '<=', 4); 
                 } else {
-                    // For a specific quarter, get ONLY that quarter
                     $sq->where('quarter', '=', $numericQuarter); 
                 }
-
             }], 'amount');
         }])
-        ->whereHas('subheads', function($q) use ($categoryIds) {
-            $q->whereIn('category_id', $categoryIds);
+        ->whereHas('subheads', function($q) use ($subheadIds) {
+            $q->whereIn('id', $subheadIds);
         })
         ->get();
     }
 
+    /**
+     * Generates data for the primary Executive Overview dashboard view.
+     * Optimized using database conditional raw expressions to eliminate the 30-second local timeout wall.
+     */
     private function getExecutiveTableData($year)
     {
         $segments = [
@@ -123,19 +171,31 @@ class BudgetPerformance extends Component
 
         $data = [];
         foreach ($segments as $segment) {
-            $categoryIds = $this->getCategoryIds($segment['type']);
+            $subheadIds = $this->getSubheadIds($segment['type']);
 
-            if (empty($categoryIds)) {
+            if (empty($subheadIds)) {
                 $data[] = $this->formatEmptyRow($segment['label']);
                 continue;
             }
 
-            $provisions = $this->getProvisionData($categoryIds);
+            $provisions = $this->getProvisionData($subheadIds);
             
-            $qs = [];
-            for ($i = 1; $i <= 4; $i++) {
-                $qs["q$i"] = $this->getMultiCategorySum($categoryIds, $i);
-            }
+            // Performance Optimization: Fetch sums of all 4 quarters in a single high-performance query
+            $quarterSums = Release::whereIn('subhead_id', $subheadIds)
+                ->selectRaw("
+                    SUM(CASE WHEN quarter = 1 THEN amount ELSE 0 END) as q1,
+                    SUM(CASE WHEN quarter = 2 THEN amount ELSE 0 END) as q2,
+                    SUM(CASE WHEN quarter = 3 THEN amount ELSE 0 END) as q3,
+                    SUM(CASE WHEN quarter = 4 THEN amount ELSE 0 END) as q4
+                ")
+                ->first();
+
+            $qs = [
+                'q1' => (float)($quarterSums->q1 ?? 0),
+                'q2' => (float)($quarterSums->q2 ?? 0),
+                'q3' => (float)($quarterSums->q3 ?? 0),
+                'q4' => (float)($quarterSums->q4 ?? 0),
+            ];
             
             $totalActual = array_sum($qs);
 
@@ -149,17 +209,25 @@ class BudgetPerformance extends Component
         return $data;
     }
 
-    private function getMultiCategorySum($categoryIds, $quarter)
+    /**
+     * Direct query wrapper helper to fetch basic transaction aggregates across subheads.
+     */
+    private function getMultiCategorySum($subheadIds, $quarter)
     {
-        return Release::whereHas('subhead', function($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            })
+        if (empty($subheadIds)) {
+            return 0;
+        }
+
+        return Release::whereIn('subhead_id', $subheadIds)
             ->when($quarter !== 'all', function($query) use ($quarter) {
                 return $query->where('quarter', $quarter);
             })
             ->sum('amount');
     }
 
+    /**
+     * Fallback format engine helper for missing structures.
+     */
     private function formatEmptyRow($label) {
         return [
             'label' => $label . ' (Not Found)',
@@ -167,6 +235,9 @@ class BudgetPerformance extends Component
         ];
     }
 
+    /**
+     * Routes format parameters to export processors.
+     */
     public function export($format)
     {
         return redirect()->route('admin.performance.export', [
@@ -177,6 +248,9 @@ class BudgetPerformance extends Component
         ]);
     }
 
+    /**
+     * Generates dataset for the single quarter perspective report.
+     */
     private function getQuarterlySummaryData($year, $quarter)
     {
         $segments = [
@@ -188,14 +262,13 @@ class BudgetPerformance extends Component
 
         $summary = [];
         foreach ($segments as $segment) {
-            $categoryIds = $this->getCategoryIds($segment['type']);
-            $provisions = $this->getProvisionData($categoryIds);
+            $subheadIds = $this->getSubheadIds($segment['type']);
+            $provisions = $this->getProvisionData($subheadIds);
 
-            $actualQuarterly = $this->getMultiCategorySum($categoryIds, $quarter);
+            $actualQuarterly = $this->getMultiCategorySum($subheadIds, $quarter);
             
-            $actualYTD = Release::whereHas('subhead', function($q) use ($categoryIds) {
-                    $q->whereIn('category_id', $categoryIds);
-                })
+            // Sum Year-To-Date calculations up to selected target period
+            $actualYTD = Release::whereIn('subhead_id', $subheadIds)
                 ->when($quarter !== 'all', function($q) use ($quarter) {
                     return $q->where('quarter', '<=', $quarter);
                 })

@@ -94,13 +94,20 @@
                             </div>
                         </div>
 
-                        <button type="submit" 
-                                wire:loading.attr="disabled" 
-                                wire:target="saveSingleEntry" 
-                                class="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">
-                            <span wire:loading.remove wire:target="saveSingleEntry">Save Record to Ledger</span>
-                            <span wire:loading wire:target="saveSingleEntry">Saving Record...</span>
-                        </button>
+                        <div class="flex justify-end w-full">
+                            <button type="submit" 
+                                    wire:loading.attr="disabled" 
+                                    wire:target="processImport"
+                                    x-bind:disabled="isUploading" 
+                                    class="px-8 py-4 bg-emerald-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50 whitespace-nowrap"
+                            >
+                                {{-- Show this when absolutely doing nothing --}}
+                                <span wire:loading.remove wire:target="processImport">Process Batch Ledger</span>
+                                
+                                {{-- Show this when executing the database loop insertion --}}
+                                <span wire:loading wire:target="processImport">Processing Core Transactions...</span>
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -112,38 +119,48 @@
                     <form wire:submit.prevent="processImport" enctype="multipart/form-data" class="flex flex-col gap-4">
                         
                         <div class="w-full" 
-                             x-data="{ isUploading: false, progress: 0 }" 
-                             x-on:livewire-upload-start="isUploading = true"
-                             x-on:livewire-upload-finish="isUploading = false"
-                             x-on:livewire-upload-error="isUploading = false"
-                             x-on:livewire-upload-progress="progress = $event.detail.progress"
+                            x-data="{ isUploading: false, progress: 0, fileName: '' }" 
+                            x-on:livewire-upload-start="isUploading = true"
+                            x-on:livewire-upload-finish="isUploading = false"
+                            x-on:livewire-upload-error="isUploading = false"
+                            x-on:livewire-upload-progress="progress = $event.detail.progress"
                         >
                             <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Batch CSV Import</label>
                             
                             <div class="relative group">
-                                <input type="file" wire:model="csvFile" class="hidden" id="csv_input" accept=".csv,.txt">
+                                <input type="file" 
+                                    wire:model="csvFile" 
+                                    class="hidden" 
+                                    id="csv_input" 
+                                    accept=".csv,.txt"
+                                    x-on:change="fileName = $event.target.files[0] ? $event.target.files[0].name : ''"
+                                >
                                 
                                 <label for="csv_input" class="flex items-center gap-3 border-2 border-dashed border-slate-200 rounded-2xl p-4 cursor-pointer group-hover:border-emerald-500 transition-all bg-slate-50/50">
-                                    <svg class="w-5 h-5 text-slate-300 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-width="2"/></svg>
+                                    <svg class="w-5 h-5 text-slate-300 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-width="2"/>
+                                    </svg>
                                     <span class="text-[10px] font-black text-slate-500 uppercase">
-                                        {{ $csvFile ? $csvFile->getClientOriginalName() : 'Choose CSV File' }}
+                                        <span x-text="fileName ? fileName : (@js($csvFile) ? 'File Ready to Process' : 'Choose CSV File')"></span>
                                     </span>
                                 </label>
                             </div>
 
                             <div x-show="isUploading" class="mt-4 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden" x-cloak>
                                 <div class="bg-emerald-600 h-1.5 transition-all duration-150" x-bind:style="'width: ' + progress + '%'"></div>
-                                <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mt-1">Uploading: <span x-text="progress"></span>%</p>
+                                <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mt-1">Uploading Payload Chunks: <span x-text="progress"></span>%</p>
                             </div>
                         </div>
 
                         <div class="flex justify-end w-full">
                             <button type="submit" 
                                     wire:loading.attr="disabled" 
-                                    wire:target="csvFile, processImport" 
-                                    class="px-8 py-4 bg-emerald-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50 whitespace-nowrap">
-                                <span wire:loading.remove wire:target="processImport">Process Batch</span>
-                                <span wire:loading wire:target="processImport">Processing...</span>
+                                    wire:target="csvFile, processImport"
+                                    x-bind:disabled="isUploading" 
+                                    class="px-8 py-4 bg-emerald-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50 whitespace-nowrap"
+                            >
+                                <span wire:loading.remove wire:target="processImport">Process Batch Ledger</span>
+                                <span wire:loading wire:target="processImport">Processing Core Transactions...</span>
                             </button>
                         </div>
                     </form>
