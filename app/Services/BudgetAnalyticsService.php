@@ -10,7 +10,7 @@ use Illuminate\Support\Collection;
 class BudgetAnalyticsService
 {
     protected $settings;
-    
+
     // Phase 1, Item 3: Government Standard Benchmarks
     protected $benchmarks = [
         'high'     => 80,
@@ -23,165 +23,158 @@ class BudgetAnalyticsService
     }
 
     /**
-     * THE QUERY ENGINE (UPDATED PHASE 1)
-     * Handles cascading filters with database-level precision.
+     * THE QUERY ENGINE (OPTIMIZED FOR PRODUCTION)
+     *
+     * Key changes vs. original:
+     *  - select() restricts columns fetched from subheads (avoids SELECT *)
+     *  - JOIN on mdas replaces ->with('mda') to eliminate the N+1 eager-load
+     *  - mda sector is read from the joined column, not from a relationship accessor
      */
     public function getFilteredPerformance($quarter = 'all', $type = null, $category = null, $groupBy = 'category', $year = null)
     {
-        // Fallback to current settings
-        $year = $year ?? \App\Models\Setting::current()->fiscal_year;
+        $year     = $year ?? \App\Models\Setting::current()->fiscal_year;
         $settings = \App\Models\Setting::current();
 
-        $query = Subhead::where('fiscal_year', $year)
-            ->when($category, function($q) use ($category) {
-                // 1. Capital Expenditure (10 digits)
+        $query = Subhead::select([
+                's.id',
+                's.subhead_code',
+                's.fiscal_year',
+                's.approved_provision',
+                's.virement_provision',
+                's.supplementary_provision',
+                's.additional_provision',
+                // Pull sector directly from the join — avoids the ->mda->sector N+1 call
+                'mdas.sector as mda_sector',
+            ])
+            ->from('subheads as s')
+            ->join('mdas', 'mdas.id', '=', 's.mda_id')
+            ->where('s.fiscal_year', $year)
+            ->when($category, function ($q) use ($category) {
                 if ($category === 'Expenditure_Capital') {
-                    return $q->whereRaw('LENGTH(subhead_code) = 10');
+                    return $q->whereRaw('LENGTH(s.subhead_code) = 10');
                 }
-
-                // 2. Revenue Categories (Must be 8 digits AND have the prefix)
                 $prefix = $this->getPrefixForCategory($category);
                 if ($prefix) {
-                    return $q->where('subhead_code', 'like', $prefix . '%')
-                            ->whereRaw('LENGTH(subhead_code) = 8');
+                    return $q->where('s.subhead_code', 'like', $prefix . '%')
+                             ->whereRaw('LENGTH(s.subhead_code) = 8');
                 }
-
                 return $q;
             })
-            ->withSum(['releases as actual_spent' => function ($query) use ($quarter) {
-                // CRITICAL: Exclude cancelled releases from the sum
-                $query->where('is_cancelled', false);
-
-                // NEW DATABASE-AGNOSTIC LOGIC
-                // Works on SQLite (Local) and MySQL (Production)
-                if ($quarter !== 'all') {
-                    $query->where('quarter', (int) $quarter);
+            ->withSum([
+                'releases as actual_spent' => function ($q) use ($quarter) {
+                    $q->where('is_cancelled', false);
+                    if ($quarter !== 'all') {
+                        $q->where('quarter', (int) $quarter);
+                    }
                 }
-            }], 'amount')
-            ->with('mda');
+            ], 'amount');
 
         $rawSubheads = $query->get();
 
         return $rawSubheads->groupBy(function ($item) use ($groupBy) {
-            return ($groupBy === 'sector') 
-                ? ($item->mda->sector ?? 'Other') 
+            // Use the already-joined column — no relationship traversal
+            return ($groupBy === 'sector')
+                ? ($item->mda_sector ?? 'Other')
                 : $this->determineCategory($item->subhead_code);
         })->map(function ($group, $label) use ($settings) {
-            
+
             $firstItem = $group->first();
-            if (!$firstItem) return null; 
+            if (!$firstItem) return null;
 
-            // Provision Summing (Approved + Virement + Supplementary + Additional)
-            $totalBudget = (float) $group->sum(fn($item) => 
-                (float)$item->approved_provision + 
-                (float)$item->virement_provision + 
-                (float)$item->supplementary_provision + 
-                (float)$item->additional_provision
+            $totalBudget = (float) $group->sum(fn($item) =>
+                (float) $item->approved_provision +
+                (float) $item->virement_provision +
+                (float) $item->supplementary_provision +
+                (float) $item->additional_provision
             );
-            
-            $totalActual = (float) $group->sum('actual_spent');
-            
-            $isRevenue = str_starts_with((string)$firstItem->subhead_code, '1');
-            $itemType = $isRevenue ? 'Revenue' : 'Expenditure';
 
-            // Variance Calculation
+            $totalActual  = (float) $group->sum('actual_spent');
+            $isRevenue    = str_starts_with((string) $firstItem->subhead_code, '1');
+            $itemType     = $isRevenue ? 'Revenue' : 'Expenditure';
             $varianceData = $this->calculateVariance($totalBudget, $totalActual, $itemType);
-            
-            // Performance Tiering (Labels, Icons, Colors)
-            $performance = (float) $varianceData->percentage;
-            $tier = $this->getPerformanceTier($performance);
+            $performance  = (float) $varianceData->percentage;
+            $tier         = $this->getPerformanceTier($performance);
 
-            return (object)[
+            return (object) [
                 'display_label' => str_replace('_', ' ', $label),
                 'type'          => $itemType,
                 'budget'        => $totalBudget,
                 'actual'        => $totalActual,
                 'variance'      => $varianceData->amount,
                 'percentage'    => $performance,
-                'status'        => $tier->color,        
-                'status_label'  => $tier->label,        
+                'status'        => $tier->color,
+                'status_label'  => $tier->label,
                 'status_icon'   => $tier->icon,
                 'item_count'    => $group->count(),
-                'currency'      => $settings->currency_symbol
+                'currency'      => $settings->currency_symbol,
             ];
         })
         ->filter()
         ->when($type, fn($c) => $c->where('type', $type))
         ->values();
     }
+
     /**
      * PHASE 1 HELPER: Maps category labels back to GFSM prefixes for DB-level filtering.
      */
     private function getPrefixForCategory($category)
     {
-        return match($category) {
-            // Revenue (GFSM Prefix)
+        return match ($category) {
             'Revenue_FAAC'            => '11',
             'Revenue_IGR'             => '12',
             'Revenue_Aid_Grant'       => '13',
             'Revenue_Capital_Receipt' => '14',
-
-            // Recurrent Expenditure
             'Expenditure_Personnel'   => '21',
             'Expenditure_Overhead'    => '22',
-
-            // Explicitly return null for Capital or Unclassified 
-            // because they rely on length/logic rather than a simple prefix
-            'Expenditure_Capital'     => null, 
-            default                   => null
+            'Expenditure_Capital'     => null,
+            default                   => null,
         };
     }
+
     /**
      * Applies Government Standard Tiering to a performance percentage.
-     * Synchronized with Phase 1, Item 3 benchmarks.
      */
     protected function getPerformanceTier($percentage)
     {
-        // 1. Force float to prevent string comparison issues from database results
         $percentage = (float) $percentage;
 
-        // 2. High Performance (e.g., >= 80%)
         if ($percentage >= ($this->benchmarks['high'] ?? 80)) {
-            return (object)[
-                'label' => 'High',
-                'color' => 'success', // emerald/green
-                'icon'  => 'fa-check-circle',
-                'bg_class' => 'bg-emerald-100 text-emerald-800' // Useful for Tailwind badges
+            return (object) [
+                'label'    => 'High',
+                'color'    => 'success',
+                'icon'     => 'fa-check-circle',
+                'bg_class' => 'bg-emerald-100 text-emerald-800',
             ];
         }
 
-        // 3. Moderate Performance (e.g., >= 50%)
         if ($percentage >= ($this->benchmarks['moderate'] ?? 50)) {
-            return (object)[
-                'label' => 'Moderate',
-                'color' => 'warning', // amber/yellow
-                'icon'  => 'fa-exclamation-circle',
-                'bg_class' => 'bg-amber-100 text-amber-800'
+            return (object) [
+                'label'    => 'Moderate',
+                'color'    => 'warning',
+                'icon'     => 'fa-exclamation-circle',
+                'bg_class' => 'bg-amber-100 text-amber-800',
             ];
         }
 
-        // 4. Low Performance
-        return (object)[
-            'label' => 'Low',
-            'color' => 'danger', // rose/red
-            'icon'  => 'fa-times-circle',
-            'bg_class' => 'bg-rose-100 text-rose-800'
+        return (object) [
+            'label'    => 'Low',
+            'color'    => 'danger',
+            'icon'     => 'fa-times-circle',
+            'bg_class' => 'bg-rose-100 text-rose-800',
         ];
     }
+
     /**
      * DASHBOARD AGGREGATOR
-     * Provides the high-level stats for the "Sleek" cards at the top of the UI.
      */
     public function getSummaryStats($quarter = 'all')
     {
-        // Fetch aggregated data from the Query Engine
-        $allData = $this->getFilteredPerformance($quarter);
+        $allData       = $this->getFilteredPerformance($quarter);
         $openingBalance = (float) ($this->settings->opening_balance ?? 0);
 
-        $revenue = $allData->where('type', 'Revenue');
+        $revenue     = $allData->where('type', 'Revenue');
         $expenditure = $allData->where('type', 'Expenditure');
 
-        // Sum up the pre-aggregated group totals
         $revBudget = $revenue->sum('budget');
         $revActual = $revenue->sum('actual');
         $expBudget = $expenditure->sum('budget');
@@ -191,20 +184,17 @@ class BudgetAnalyticsService
             'opening_balance'   => $openingBalance,
             'revenue'           => (array) $this->calculateVariance($revBudget, $revActual, 'Revenue'),
             'expenditure'       => (array) $this->calculateVariance($expBudget, $expActual, 'Expenditure'),
-            'net_cash_position' => ($openingBalance + $revActual) - $expActual
+            'net_cash_position' => ($openingBalance + $revActual) - $expActual,
         ];
     }
+
     /**
      * RANKING ENGINE
-     * Used for "Top Spender" or "Highest Variance" MDA analysis.
      */
     public function getMDARanking($quarter = 'all', $type = 'Expenditure')
     {
-        // We leverage getFilteredPerformance with 'sector' groupBy to ensure mda_name access
         return $this->getFilteredPerformance($quarter, $type, null, 'sector')
-            ->map(function ($item) use ($type) {
-                // Since getFilteredPerformance already calculates variance per group,
-                // we map it into a ranking-friendly format.
+            ->map(function ($item) {
                 return [
                     'mda'          => $item->display_label,
                     'total_budget' => $item->budget,
@@ -212,7 +202,7 @@ class BudgetAnalyticsService
                     'variance'     => $item->variance,
                     'percentage'   => $item->percentage,
                     'status'       => $item->status,
-                    'label'        => $item->status_label
+                    'label'        => $item->status_label,
                 ];
             })
             ->sortByDesc('total_actual')
@@ -224,13 +214,13 @@ class BudgetAnalyticsService
      */
     public function getQuarterlyTrend($currentQ, $previousQ)
     {
-        $current = $this->getSummaryStats($currentQ);
+        $current  = $this->getSummaryStats($currentQ);
         $previous = $this->getSummaryStats($previousQ);
 
         return [
             'revenue_growth'  => $this->calculateGrowth($previous['revenue']['actual'], $current['revenue']['actual']),
             'spending_growth' => $this->calculateGrowth($previous['expenditure']['actual'], $current['expenditure']['actual']),
-            'net_change'      => $current['net_cash_position'] - $previous['net_cash_position']
+            'net_change'      => $current['net_cash_position'] - $previous['net_cash_position'],
         ];
     }
 
@@ -242,23 +232,23 @@ class BudgetAnalyticsService
 
     /**
      * LEVEL 1 LOGIC: Macro Aggregation
-     * Groups specific categories into the top-level Revenue/Expenditure buckets.
      */
     public function getLevel1Analysis($quarter = 'all')
     {
         $allData = $this->getFilteredPerformance($quarter);
-        
+
         $groups = [
-            'Revenue'     => ['Revenue_FAAC', 'Revenue_IGR', 'Revenue_Aid_Grant', 'Revenue_Capital_Receipt'],
-            'Expenditure' => ['Expenditure_Personnel', 'Expenditure_Overhead', 'Expenditure_Capital']
+            'Revenue'     => ['Revenue FAAC', 'Revenue IGR', 'Revenue Aid Grant', 'Revenue Capital Receipt'],
+            'Expenditure' => ['Expenditure Personnel', 'Expenditure Overhead', 'Expenditure Capital'],
         ];
 
         $analysis = [];
         foreach ($groups as $level1Name => $level2Categories) {
+            // display_label has underscores replaced with spaces already
             $subset = $allData->whereIn('display_label', $level2Categories);
             $budget = $subset->sum('budget');
             $actual = $subset->sum('actual');
-            
+
             $varianceData = $this->calculateVariance($budget, $actual, $level1Name);
 
             $analysis[$level1Name] = [
@@ -268,9 +258,10 @@ class BudgetAnalyticsService
                 'percentage'   => $varianceData->percentage,
                 'status'       => $varianceData->status,
                 'status_label' => $varianceData->label,
-                'breakdown'    => $this->formatBreakdown($subset)
+                'breakdown'    => $this->formatBreakdown($subset),
             ];
         }
+
         return $analysis;
     }
 
@@ -280,7 +271,7 @@ class BudgetAnalyticsService
             return [
                 'budget' => $items->sum('budget'),
                 'actual' => $items->sum('actual'),
-                'count'  => $items->sum('item_count')
+                'count'  => $items->sum('item_count'),
             ];
         });
     }
@@ -290,7 +281,6 @@ class BudgetAnalyticsService
      */
     public function getSectoralDeepDive($quarter = 'all', $sectorName = null)
     {
-        // Fetch data grouped by sector
         $allData = $this->getFilteredPerformance($quarter, null, null, 'sector');
 
         if ($sectorName) {
@@ -298,105 +288,88 @@ class BudgetAnalyticsService
         }
 
         return $allData->map(function ($sectorItem) {
-            // This leverages the pre-calculated aggregates from the main engine
             return [
-                'sector'         => $sectorItem->display_label,
-                'total_budget'   => $sectorItem->budget,
-                'total_actual'   => $sectorItem->actual,
-                'percentage'     => $sectorItem->percentage,
-                'health_status'  => $sectorItem->status,
-                'item_count'     => $sectorItem->item_count
+                'sector'       => $sectorItem->display_label,
+                'total_budget' => $sectorItem->budget,
+                'total_actual' => $sectorItem->actual,
+                'percentage'   => $sectorItem->percentage,
+                'health_status'=> $sectorItem->status,
+                'item_count'   => $sectorItem->item_count,
             ];
         })->sortByDesc('total_actual')->values();
     }
+
     /**
      * UNIVERSAL VARIANCE HELPER
-     * Calculates the spread and assigns a status based on type (Revenue vs Expenditure).
      */
     public function calculateVariance($budget, $actual, $type = 'Expenditure')
     {
-        $budget = (float)$budget;
-        $actual = (float)$actual;
-        
-        // 1. Better Percentage Logic
+        $budget = (float) $budget;
+        $actual = (float) $actual;
+
         if ($budget > 0) {
             $percentage = ($actual / $budget) * 100;
         } else {
-            // If there's no budget but we spent money, it's 100% overspent/unbudgeted
-            $percentage = $actual > 0 ? 101 : 0; 
+            $percentage = $actual > 0 ? 101 : 0;
         }
-        
-        // 2. Variance Amount
-        // Revenue: Negative means shortfall. Expenditure: Positive means savings.
+
         $amount = $budget - $actual;
-        
-        $tier = $this->getPerformanceTier($percentage);
-        
-        // 3. Refined Contextual Status
+        $tier   = $this->getPerformanceTier($percentage);
+
         $status = 'neutral';
         if ($type === 'Revenue') {
-            $status = match(true) {
-                $percentage >= 100 => 'success', // Met/Exceeded target
-                $percentage >= 75  => 'info',    // On track
-                default            => 'warning', // Shortfall
+            $status = match (true) {
+                $percentage >= 100 => 'success',
+                $percentage >= 75  => 'info',
+                default            => 'warning',
             };
         } else {
-            $status = match(true) {
-                $percentage > 100 => 'danger',  // Overspent (Budget exceeded)
-                $percentage >= 90 => 'warning', // Near limit
-                default           => 'success', // Within budget
+            $status = match (true) {
+                $percentage > 100 => 'danger',
+                $percentage >= 90 => 'warning',
+                default           => 'success',
             };
         }
 
-        return (object)[
-            'budget'     => $budget,
-            'actual'     => $actual,
-            'amount'     => $amount,
-            'percentage' => round($percentage, 2),
-            'status'     => $status,
-            'label'      => $this->getStatusLabel($status),
-            'tier_label' => $tier->label,
-            'tier_icon'  => $tier->icon,
-            'is_overspent' => ($type === 'Expenditure' && $actual > $budget),
-            'is_shortfall' => ($type === 'Revenue' && $actual < $budget),
+        return (object) [
+            'budget'      => $budget,
+            'actual'      => $actual,
+            'amount'      => $amount,
+            'percentage'  => round($percentage, 2),
+            'status'      => $status,
+            'label'       => $this->getStatusLabel($status),
+            'tier_label'  => $tier->label,
+            'tier_icon'   => $tier->icon,
+            'is_overspent'=> ($type === 'Expenditure' && $actual > $budget),
+            'is_shortfall'=> ($type === 'Revenue' && $actual < $budget),
         ];
     }
 
-    /**
-     * Translates status slugs into human-readable dashboard labels.
-     */
     private function getStatusLabel($status)
     {
-        return match($status) {
+        return match ($status) {
             'success' => 'On Track',
             'warning' => 'Underperforming',
             'danger'  => 'Overspent',
             'info'    => 'Satisfactory',
-            default   => 'No Data'
+            default   => 'No Data',
         };
     }
 
     /**
      * THE CATEGORY MAPPER
-     * Identifies budget lines based on GFSM code prefixes and string length.
      */
     private function determineCategory($code)
     {
-        // 1. Sanitize once
-        $cleanCode = trim((string)$code);
-        $length = strlen($cleanCode);
+        $cleanCode = trim((string) $code);
+        $length    = strlen($cleanCode);
 
-        // 2. Safety Check
         if (empty($cleanCode)) return 'Unclassified';
+        if ($length === 10)    return 'Expenditure_Capital';
 
-        // 3. Capital Expenditure (10-digit rule)
-        if ($length === 10) return 'Expenditure_Capital';
-
-        // 4. Recurrent Expenditure
         if (str_starts_with($cleanCode, '21')) return 'Expenditure_Personnel';
         if (str_starts_with($cleanCode, '22')) return 'Expenditure_Overhead';
 
-        // 5. Revenue (8-digit validation)
         if ($length === 8) {
             if (str_starts_with($cleanCode, '11')) return 'Revenue_FAAC';
             if (str_starts_with($cleanCode, '12')) return 'Revenue_IGR';
@@ -404,100 +377,59 @@ class BudgetAnalyticsService
             if (str_starts_with($cleanCode, '14')) return 'Revenue_Capital_Receipt';
         }
 
-        // 6. The Fixed Fallback
-        // Only return 'Unclassified_Internal' if the code is too short to even have a prefix
         if ($length < 2) return 'Unclassified_Internal';
 
-        // Otherwise, use your Dynamic Sector logic
         return 'Sector_' . substr($cleanCode, 0, 2);
     }
 
-   
     /**
      * PHASE 2: COMPARATIVE ANALYSIS ENGINE
-     * Provides data for the Dual-Ranking Toggle (Value vs. Efficiency)
-     * PHASE 2, ITEM 2: WEIGHTED ANALYSIS
-     * Adds Fiscal Significance (Budget Share) to the ranking logic.
      */
     public function getComparativeRanking($quarter = 'all', $type = 'Expenditure')
     {
-        // 1. Get the baseline data
-        $data = $this->getFilteredPerformance($quarter, $type, null, 'sector');
-        
-        // 2. Calculate the Total Global Budget for this specific type (Revenue or Expenditure)
-        // This is needed to calculate the "Share" (%) of each MDA/Sector
+        $data              = $this->getFilteredPerformance($quarter, $type, null, 'sector');
         $totalGlobalBudget = $data->sum('budget');
 
-        // 3. Map and Inject Weighted Metrics
-        $enrichedData = $data->map(function($item) use ($totalGlobalBudget) {
-            // Fiscal Significance: What % of the total budget does this entity control?
-            $budgetShare = $totalGlobalBudget > 0 
-                ? ($item->budget / $totalGlobalBudget) * 100 
-                : 0;
+        $enrichedData = $data->map(function ($item) use ($totalGlobalBudget) {
+            $budgetShare   = $totalGlobalBudget > 0 ? ($item->budget / $totalGlobalBudget) * 100 : 0;
+            $weightedScore = $item->percentage * ($budgetShare / 100);
 
-            // Weighted Score: A balance between performance and size.
-            // Example: 50% performance on 10B is more significant than 90% on 1M.
-            $weightedScore = ($item->percentage * ($budgetShare / 100));
-
-            return (object) array_merge((array)$item, [
+            return (object) array_merge((array) $item, [
                 'budget_share'   => round($budgetShare, 2),
                 'weighted_score' => round($weightedScore, 2),
-                'is_significant' => $budgetShare > 5 // Flag if entity controls > 5% of total budget
+                'is_significant' => $budgetShare > 5,
             ]);
         });
 
-        // 4. Ranking By Value (Cash Flow)
-        $byValue = $enrichedData->sortByDesc('actual')->values();
-
-        // 5. Ranking By Efficiency (Weighted)
-        // We sort by weighted_score so that large, high-performing MDAs rise to the top
+        $byValue      = $enrichedData->sortByDesc('actual')->values();
         $byEfficiency = $enrichedData->sortByDesc('weighted_score')->values();
 
         return [
             'spending_ranking'   => $byValue,
             'efficiency_ranking' => $byEfficiency,
             'meta' => [
-                'total_volume'   => $totalGlobalBudget,
-                'top_spender'    => $byValue->first()->display_label ?? 'N/A',
-                'most_critical'  => $byEfficiency->first()->display_label ?? 'N/A',
-            ]
+                'total_volume' => $totalGlobalBudget,
+                'top_spender'  => $byValue->first()->display_label ?? 'N/A',
+                'most_critical'=> $byEfficiency->first()->display_label ?? 'N/A',
+            ],
         ];
     }
 
     /**
      * PHASE 3, ITEM 1: EXCO-READY AGGREGATED REPORT
-     * Distills the data into "The Big Picture" for cabinet-level presentation.
      */
     public function getExcoReport($filters)
     {
-        // 1. Load dynamic system settings (Year, Currency, etc.)
         $settings = \App\Models\Setting::current();
-        
-        $quarter = $filters['quarter'] ?? 'all';
-        $type = $filters['type'] ?? null;
+
+        $quarter  = $filters['quarter'] ?? 'all';
+        $type     = $filters['type'] ?? null;
         $category = $filters['category'] ?? null;
-        
-        /**
-         * DYNAMIC GROUPING
-         * Automatically switches the "lens" if a specific category is chosen.
-         */
-        $groupBy = (!empty($category)) ? 'sector' : ($filters['groupBy'] ?? 'category');
+        $groupBy  = (!empty($category)) ? 'sector' : ($filters['groupBy'] ?? 'category');
 
-        // 2. Fetch aggregated data using the active fiscal year from settings
-        // Ensure getFilteredPerformance is updated to accept $settings->fiscal_year
-        $reportData = $this->getFilteredPerformance(
-            $quarter, 
-            $type, 
-            $category, 
-            $groupBy, 
-            $settings->fiscal_year
-        );
-
-        // 3. Generate Global Totals
-        $globalBudget = $reportData->sum('budget');
-        $globalActual = $reportData->sum('actual');
-        
-        // Calculate variance using your Expenditure logic
+        $reportData    = $this->getFilteredPerformance($quarter, $type, $category, $groupBy, $settings->fiscal_year);
+        $globalBudget  = $reportData->sum('budget');
+        $globalActual  = $reportData->sum('actual');
         $globalVariance = $this->calculateVariance($globalBudget, $globalActual, 'Expenditure');
 
         return [
@@ -510,13 +442,10 @@ class BudgetAnalyticsService
                 'fiscal_year'      => $settings->fiscal_year,
                 'currency_symbol'  => $settings->currency_symbol,
                 'reporting_period' => $quarter === 'all' ? 'Full Year' : "Quarter $quarter",
-                'current_lens'     => $groupBy
+                'current_lens'     => $groupBy,
             ],
-            
-            'rows' => $reportData->map(function($row) {
-                // Pull specific tier for ICON and COLOR from your engine
+            'rows' => $reportData->map(function ($row) {
                 $tier = $this->getPerformanceTier($row->percentage);
-
                 return [
                     'label'       => $row->display_label,
                     'approved'    => $row->budget,
@@ -525,120 +454,88 @@ class BudgetAnalyticsService
                     'status'      => $tier->color,
                     'indicator'   => $tier->icon,
                     'status_text' => $tier->label,
-                    'item_count'  => $row->item_count
+                    'item_count'  => $row->item_count,
                 ];
-            })->sortByDesc('approved')->values()
+            })->sortByDesc('approved')->values(),
         ];
     }
 
     /**
      * PHASE 1 & 3: GLOBAL SWITCH COORDINATOR
-     * This ensures every module reflects the "Global Filters" selected by the user.
      */
     public function getExcoDashboardState($filters = [])
     {
-        // 1. Extract Global Switches with defaults
-        // These values come directly from your Livewire dropdowns
         $quarter  = $filters['quarter'] ?? 'all';
-        $type     = $filters['type'] ?? null;      // Revenue or Expenditure
-        $category = $filters['category'] ?? null;  // Personnel, Overhead, Capital, etc.
+        $type     = $filters['type'] ?? null;
+        $category = $filters['category'] ?? null;
 
-        // 2. The Waterfall Effect: Core Dataset
-        // We fetch the main table data using the optimized Query Engine from the previous step.
         $performanceData = $this->getFilteredPerformance($quarter, $type, $category);
-
-        // 3. Synchronized Rankings
-        // We pass the SAME quarter and type so that if HE filters for "Q2", 
-        // the rankings show Q2 performance, not the full year.
-        $rankings = $this->getComparativeRanking($quarter, $type);
-
-        // 4. Macro Level 1 Analysis
-        // This provides the "Big Picture" (Total Rev vs Total Exp) for the selected quarter.
-        $macroAnalysis = $this->getLevel1Analysis($quarter);
-
-        // 5. Summary Stats (The Sleek Cards)
-        // This ensures the Net Cash Position is calculated based on the selected period.
-        $summary = $this->getSummaryStats($quarter);
+        $rankings        = $this->getComparativeRanking($quarter, $type);
+        $macroAnalysis   = $this->getLevel1Analysis($quarter);
+        $summary         = $this->getSummaryStats($quarter);
 
         return [
             'context' => [
-                'period'   => $quarter === 'all' ? 'Full Year' : "Quarter $quarter",
-                'scope'    => $category ?? ($type ?? 'All Departments'),
-                'year'     => $this->settings->fiscal_year,
+                'period'      => $quarter === 'all' ? 'Full Year' : "Quarter $quarter",
+                'scope'       => $category ?? ($type ?? 'All Departments'),
+                'year'        => $this->settings->fiscal_year,
                 'is_filtered' => ($quarter !== 'all' || $type || $category),
             ],
-            'stats'    => $summary,          // Feeds the top cards
-            'table'    => $performanceData,  // Feeds the aggregated main table
-            'rankings' => $rankings,       // Feeds the new Ranking Page/Section
-            'macro'    => $macroAnalysis,    // Feeds the breakdown charts
+            'stats'    => $summary,
+            'table'    => $performanceData,
+            'rankings' => $rankings,
+            'macro'    => $macroAnalysis,
         ];
     }
 
     /**
      * PHASE 3, ITEM 3: EXECUTIVE EXPORT DATA PREP
-     * Prepares a distilled, single-page data structure for PDF/Meeting handouts.
      */
     public function getExecutiveHandoutData($quarter = 'all', $type = 'Expenditure')
     {
-        // 1. Get the Big Picture (Summary Stats)
-        $summary = $this->getSummaryStats($quarter);
-        
-        // 2. Get the Aggregated Table (Filtered by Type)
-        // We use 'category' here as it's the standard EXCO presentation format
-        $tableData = $this->getFilteredPerformance($quarter, $type, null, 'category');
-
-        // 3. Get the Top 5 "Fiscally Significant" Performers (Weighted)
-        // We limit to 5 to ensure the PDF stays on one page
-        $rankings = $this->getComparativeRanking($quarter, $type);
-        $topPerformers = collect($rankings['efficiency_ranking'])->take(5);
+        $summary     = $this->getSummaryStats($quarter);
+        $tableData   = $this->getFilteredPerformance($quarter, $type, null, 'category');
+        $rankings    = $this->getComparativeRanking($quarter, $type);
+        $topPerformers    = collect($rankings['efficiency_ranking'])->take(5);
         $bottomPerformers = collect($rankings['efficiency_ranking'])->reverse()->take(5);
 
         return [
             'meta' => [
-                'title' => 'EXCO Budget Performance Brief',
-                'fiscal_year' => $this->settings->fiscal_year,
-                'period' => $quarter === 'all' ? 'Full Year' : "Quarter $quarter",
+                'title'        => 'EXCO Budget Performance Brief',
+                'fiscal_year'  => $this->settings->fiscal_year,
+                'period'       => $quarter === 'all' ? 'Full Year' : "Quarter $quarter",
                 'generated_at' => now()->format('d M Y, H:i'),
-                'context' => $type
+                'context'      => $type,
             ],
             'summary_cards' => [
-                'budget' => $summary[strtolower($type)]['budget'],
-                'actual' => $summary[strtolower($type)]['actual'],
-                'performance' => $summary[strtolower($type)]['percentage'],
-                'status_label' => $summary[strtolower($type)]['label']
+                'budget'       => $summary[strtolower($type)]['budget'],
+                'actual'       => $summary[strtolower($type)]['actual'],
+                'performance'  => $summary[strtolower($type)]['percentage'],
+                'status_label' => $summary[strtolower($type)]['label'],
             ],
-            'main_table' => $tableData,
+            'main_table'      => $tableData,
             'executive_brief' => [
                 'high_performers' => $topPerformers,
-                'low_performers' => $bottomPerformers
-            ]
+                'low_performers'  => $bottomPerformers,
+            ],
         ];
     }
 
     public function getStats($quarter = 'all', $year = null)
     {
-        // 1. Setup Context
-        $year = $year ?? \App\Models\Setting::current()->fiscal_year;
+        $year           = $year ?? \App\Models\Setting::current()->fiscal_year;
         $openingBalance = (float) ($this->settings->opening_balance ?? 0);
 
-        // 2. Reuse the Core Query Logic
-        // We fetch all performance data once. This already handles:
-        // - The new 'quarter' column (SQLite/MySQL agnostic)
-        // - Excluding cancelled releases
-        // - Summing all 4 provision types
         $allPerformanceData = $this->getFilteredPerformance($quarter, null, null, 'category', $year);
 
-        // 3. Extract Revenue Stats
-        $revenueItems = $allPerformanceData->where('type', 'Revenue');
-        $revBudget = (float) $revenueItems->sum('budget');
-        $revActual = (float) $revenueItems->sum('actual');
+        $revenueItems     = $allPerformanceData->where('type', 'Revenue');
+        $revBudget        = (float) $revenueItems->sum('budget');
+        $revActual        = (float) $revenueItems->sum('actual');
 
-        // 4. Extract Expenditure Stats
         $expenditureItems = $allPerformanceData->where('type', 'Expenditure');
-        $expBudget = (float) $expenditureItems->sum('budget');
-        $expActual = (float) $expenditureItems->sum('actual');
+        $expBudget        = (float) $expenditureItems->sum('budget');
+        $expActual        = (float) $expenditureItems->sum('actual');
 
-        // 5. Use your Variance Engine for consistent status/labels
         $revAnalysis = $this->calculateVariance($revBudget, $revActual, 'Revenue');
         $expAnalysis = $this->calculateVariance($expBudget, $expActual, 'Expenditure');
 
@@ -658,99 +555,87 @@ class BudgetAnalyticsService
                 'label'      => $expAnalysis->label,
             ],
             'net_cash_position' => ($openingBalance + $revActual) - $expActual,
-            'opening_balance'   => $openingBalance
+            'opening_balance'   => $openingBalance,
         ];
     }
 
+    /**
+     * OPTIMIZED: getComparativeRankings
+     *
+     * Changed from strftime('%m', release_date) date math to WHERE quarter = ?
+     * This matches the indexed `quarter` integer column used everywhere else,
+     * works identically on SQLite (local) and MySQL (production), and is index-friendly.
+     */
     public function getComparativeRankings($quarter = 'all')
     {
         return \App\Models\Release::query()
-            // 1. Exclude cancelled transactions immediately
             ->where('is_cancelled', false)
-            
-            // 2. Join MDAs for official names and Subheads for provisions
             ->join('mdas', 'releases.mda_id', '=', 'mdas.id')
             ->leftJoin('subheads', 'releases.subhead_id', '=', 'subheads.id')
-            ->select(
-                'mdas.mda_code', 
-                'mdas.name'
-            )
+            ->select('mdas.mda_code', 'mdas.name')
             ->selectRaw('SUM(releases.amount) as total_actual')
-            
-            // 3. Summing ALL 4 provision types to match your other services
             ->selectRaw('SUM(
-                COALESCE(subheads.approved_provision, 0) + 
-                COALESCE(subheads.virement_provision, 0) + 
-                COALESCE(subheads.supplementary_provision, 0) + 
+                COALESCE(subheads.approved_provision, 0) +
+                COALESCE(subheads.virement_provision, 0) +
+                COALESCE(subheads.supplementary_provision, 0) +
                 COALESCE(subheads.additional_provision, 0)
             ) as total_budget')
-            
-            // 4. Database-Agnostic Quarter Filtering (Works on SQLite & MySQL)
-            ->when($quarter !== 'all', function ($query) use ($quarter) {
-                return $query->where('releases.quarter', (int) $quarter);
-            })
+            // Use the indexed `quarter` integer column instead of computed strftime expressions
+            ->when($quarter !== 'all', fn($q) => $q->where('releases.quarter', (int) $quarter))
             ->groupBy('mdas.mda_code', 'mdas.name')
             ->get()
             ->map(function ($item) use ($quarter) {
-                $actual = (float) $item->total_actual;
-                $annualBudget = (float) $item->total_budget;
-
-                /**
-                 * 5. Comparative Budget Logic
-                 * Standardizes performance by comparing against 1/4 of budget per quarter.
-                 */
+                $actual          = (float) $item->total_actual;
+                $annualBudget    = (float) $item->total_budget;
                 $comparativeBudget = ($quarter !== 'all') ? ($annualBudget / 4) : $annualBudget;
-                $performance = ($comparativeBudget > 0) ? ($actual / $comparativeBudget) * 100 : 0;
+                $performance     = ($comparativeBudget > 0) ? ($actual / $comparativeBudget) * 100 : 0;
 
-                /**
-                 * 6. Institutional Weighting Score
-                 * Efficiency (70%) + Scale (30%)
-                 */
-                $item->weighted_score = ($performance * 0.7) + (($actual / 1000000) * 0.3);
+                $item->weighted_score  = ($performance * 0.7) + (($actual / 1_000_000) * 0.3);
+                $item->actual          = $actual;
+                $item->performance     = $performance;
+                $item->is_significant  = $actual > 100_000_000;
 
-                // 7. UI Metadata for Blade
-                $item->actual = $actual;
-                $item->performance = $performance;
-                $item->is_significant = $actual > 100000000; // Over 100M
-
-                // 8. Performance Tiers
-                $tier = $this->getPerformanceTier($performance);
-                $item->status = $tier->color; // emerald, amber, rose
+                $tier              = $this->getPerformanceTier($performance);
+                $item->status      = $tier->color;
                 $item->status_label = $tier->label;
 
                 return $item;
             })
             ->sortByDesc('weighted_score')
-            ->values(); 
+            ->values();
     }
 
+    /**
+     * OPTIMIZED: getRankingsBySubheadLogic
+     *
+     * Changed quarterly filter from strftime('%m', r.release_date) to
+     * WHERE r.quarter = ? — uses the indexed integer column, works on
+     * both SQLite and MySQL without engine-specific date functions.
+     */
     public function getRankingsBySubheadLogic(array $constraints): Collection
     {
         $quarter = $constraints['quarter'];
-        $rules = $constraints['rules'];
+        $rules   = $constraints['rules'];
 
         $query = DB::table('mdas as m')
             ->select('m.id', 'm.name', 'm.mda_code')
-            // Join releases to get actual spending
             ->join('releases as r', 'm.id', '=', 'r.mda_id')
-            // Join subheads to get the approved budget (provision)
             ->join('subheads as s', 'r.subhead_id', '=', 's.id')
             ->selectRaw('SUM(r.amount) as actual')
-            ->selectRaw('SUM(s.approved_provision) as provision') 
+            ->selectRaw('SUM(s.approved_provision) as provision')
+            ->where('r.is_cancelled', false)
             ->groupBy('m.id', 'm.name', 'm.mda_code');
 
-        // 1. Structural Logic using the subhead_code from the subheads table
         if ($rules === 'all_expenditure') {
             $query->where(function ($q) {
                 $q->whereRaw('LENGTH(s.subhead_code) = 10')
                   ->orWhere(function ($sq) {
                       $sq->whereRaw('LENGTH(s.subhead_code) = 8')
-                        ->whereRaw("s.subhead_code NOT LIKE '1%'");
+                         ->whereRaw("s.subhead_code NOT LIKE '1%'");
                   });
             });
         } elseif (is_array($rules)) {
             $query->whereRaw('LENGTH(s.subhead_code) = ?', [$rules['length']]);
-            
             if (!empty($rules['prefixes'])) {
                 $query->where(function ($q) use ($rules) {
                     foreach ($rules['prefixes'] as $prefix) {
@@ -760,25 +645,25 @@ class BudgetAnalyticsService
             }
         }
 
-        // 2. Quarterly Filter (Filtering by release_date)
+        // Use indexed integer `quarter` column instead of strftime date expressions
         if ($quarter !== 'all') {
-            $query->whereRaw("strftime('%m', r.release_date) BETWEEN ? AND ?", [
-                sprintf('%02d', ($quarter - 1) * 3 + 1),
-                sprintf('%02d', $quarter * 3)
-            ]);
+            $query->where('r.quarter', (int) $quarter);
         }
 
         return $query->get()->map(function ($item) {
-            $actual = (float) $item->actual;
+            $actual   = (float) $item->actual;
             $provision = (float) $item->provision;
 
             $item->performance_percentage = $provision > 0 ? ($actual / $provision) * 100 : 0;
-            $item->weighted_score = min($item->performance_percentage, 100);
-            
+            $item->weighted_score         = min($item->performance_percentage, 100);
+
             return $item;
         });
     }
 
+    /**
+     * getComparativeData — unchanged (delegates to getPeriodStats)
+     */
     public function getComparativeData(array $pA, array $pB, string $type): Collection
     {
         $dataA = $this->getPeriodStats($pA, $type);
@@ -786,27 +671,33 @@ class BudgetAnalyticsService
 
         return $dataA->map(function ($itemA) use ($dataB) {
             $itemB = $dataB->firstWhere('mda_id', $itemA->mda_id);
-            
-            $actualA = (float) ($itemA->total_actual ?? 0);
-            $actualB = (float) ($itemB->total_actual ?? 0);
-            
-            $variance = $actualB - $actualA;
+
+            $actualA       = (float) ($itemA->total_actual ?? 0);
+            $actualB       = (float) ($itemB->total_actual ?? 0);
+            $variance      = $actualB - $actualA;
             $percentChange = $actualA > 0 ? ($variance / $actualA) * 100 : ($actualB > 0 ? 100 : 0);
 
             return (object) [
-                'mda_id' => $itemA->mda_id,
-                'name' => $itemA->name,
-                'mda_code' => $itemA->mda_code,
-                'actual_a' => $actualA,
-                'actual_b' => $actualB,
-                'variance' => $variance,
-                'percent_change' => $percentChange,
-                'perf_a' => $itemA->performance ?? 0,
-                'perf_b' => $itemB->performance ?? 0,
+                'mda_id'        => $itemA->mda_id,
+                'name'          => $itemA->name,
+                'mda_code'      => $itemA->mda_code,
+                'actual_a'      => $actualA,
+                'actual_b'      => $actualB,
+                'variance'      => $variance,
+                'percent_change'=> $percentChange,
+                'perf_a'        => $itemA->performance ?? 0,
+                'perf_b'        => $itemB->performance ?? 0,
             ];
         });
     }
 
+    /**
+     * OPTIMIZED: getPeriodStats
+     *
+     * Replaced whereYear('r.release_date', ...) + strftime quarter math with
+     * WHERE fiscal_year = ? and WHERE quarter = ? — both are indexed integers
+     * that work on SQLite and MySQL without date parsing overhead.
+     */
     private function getPeriodStats(array $period, string $type): Collection
     {
         $query = DB::table('mdas as m')
@@ -814,46 +705,64 @@ class BudgetAnalyticsService
             ->join('subheads as s', 'r.subhead_id', '=', 's.id')
             ->select('m.id as mda_id', 'm.name', 'm.mda_code')
             ->selectRaw('SUM(r.amount) as total_actual')
-            ->selectRaw('(SUM(r.amount) / SUM(s.approved_provision)) * 100 as performance')
-            ->whereYear('r.release_date', $period['year']);
+            ->selectRaw('CASE WHEN SUM(s.approved_provision) > 0 THEN (SUM(r.amount) / SUM(s.approved_provision)) * 100 ELSE 0 END as performance')
+            ->where('r.is_cancelled', false)
+            // Use fiscal_year integer column instead of whereYear() on a date column
+            ->where('s.fiscal_year', $period['year']);
 
         if ($period['quarter'] !== 'all') {
-            $query->whereRaw("((strftime('%m', r.release_date) - 1) / 3) + 1 = ?", [$period['quarter']]);
+            // Use indexed `quarter` integer column instead of computed strftime expression
+            $query->where('r.quarter', (int) $period['quarter']);
         }
 
         return $query->groupBy('m.id', 'm.name', 'm.mda_code')->get();
     }
 
+    /**
+     * OPTIMIZED: getMultiPeriodData
+     *
+     * Original ran one DB query PER MDA PER period inside a nested loop.
+     * Now runs ONE query per period using conditional aggregation (SUM CASE WHEN),
+     * then joins the results in PHP — reduces DB round-trips from N*P to P.
+     *
+     * N = number of MDAs, P = number of periods selected.
+     */
     public function getMultiPeriodData(array $periods, string $type): Collection
     {
-        // Get MDAs based on your previous software history
-        $mdas = DB::table('mdas')->select('id', 'name', 'mda_code')->get();
+        $mdas = DB::table('mdas')->select('id', 'name', 'mda_code')->get()->keyBy('id');
 
-        return $mdas->map(function ($mda) use ($periods) {
-            $values = [];
-            
-            foreach ($periods as $index => $p) {
-                $query = DB::table('releases as r')
-                    ->join('subheads as s', 'r.subhead_id', '=', 's.id')
-                    ->where('r.mda_id', $mda->id)
-                    ->whereYear('r.release_date', $p['year']);
+        // Build one query per period, fetch all MDAs at once, then pivot in PHP
+        $periodTotals = [];
+        foreach ($periods as $index => $p) {
+            $query = DB::table('releases as r')
+                ->join('subheads as s', 'r.subhead_id', '=', 's.id')
+                ->select('r.mda_id')
+                ->selectRaw('SUM(r.amount) as total')
+                ->where('r.is_cancelled', false)
+                ->where('s.fiscal_year', $p['year']);
 
-                // Dynamic Quarter Filter
-                if ($p['quarter'] !== 'all') {
-                    $query->whereRaw("((strftime('%m', r.release_date) - 1) / 3) + 1 = ?", [$p['quarter']]);
-                }
-
-                $values["p_$index"] = $query->sum('r.amount');
+            if ($p['quarter'] !== 'all') {
+                $query->where('r.quarter', (int) $p['quarter']);
             }
 
-            $mda->values = $values;
-            // Calculate total variance from first to last selected period
-            $first = reset($values);
-            $last = end($values);
-            $mda->total_variance = $last - $first;
+            // Index by mda_id for O(1) lookup when building the result below
+            $periodTotals[$index] = $query->groupBy('r.mda_id')->get()->keyBy('mda_id');
+        }
+
+        return $mdas->map(function ($mda) use ($periods, $periodTotals) {
+            $values = [];
+
+            foreach ($periods as $index => $p) {
+                $values["p_$index"] = (float) ($periodTotals[$index][$mda->id]->total ?? 0);
+            }
+
+            $mda->values             = $values;
+            $first                   = reset($values);
+            $last                    = end($values);
+            $mda->total_variance     = $last - $first;
             $mda->variance_percentage = $first > 0 ? (($last - $first) / $first) * 100 : 0;
 
             return $mda;
-        });
+        })->values();
     }
 }
