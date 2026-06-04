@@ -244,8 +244,8 @@
                     sector: document.getElementById('sectorChart'),
                     mda: document.getElementById('mdaChart'),
                     burn: document.getElementById('burnRateChart'),
-                    trend: document.getElementById('trendChart'),
-                    status: document.getElementById('statusChart')
+                    trend: document.getElementById('trendChart')
+                    // status: document.getElementById('statusChart')
                 };
 
                 // 2. Clear existing chart instances to prevent overlapping
@@ -256,14 +256,14 @@
                 });
 
                 // 3. Define Data Sources
-                let sectors, mdas, burnRate, trends, status;
+                let sectors, mdas, burnRate, trends; //status;
 
                 if (liveData) {
                     sectors = liveData.sectors;
                     mdas = liveData.mdas;
                     burnRate = liveData.burnRate;
                     trends = liveData.trends;
-                    status = liveData.status;
+                    //status = liveData.status;
                 } else {
                     sectors = {
                         // Adding ?? [] ensures that if the variable is missing, it just returns an empty array instead of a 500 error
@@ -279,10 +279,7 @@
                         labels: @json($trendLabels ?? []),
                         values: @json($trendValues ?? [])
                     };
-                    status = {
-                        labels: @json($statusData->pluck('status')->toArray()),
-                        values: @json($statusData->pluck('count')->toArray())
-                    };
+                    
                 }
 
                 // --- CHART RENDERING LOGIC ---
@@ -361,20 +358,20 @@
                     });
                 }
 
-                // 5. Project Status Chart (Polar Area)
-                if (canvases.status) {
-                    new Chart(canvases.status, {
-                        type: 'polarArea',
-                        data: {
-                            labels: status.labels,
-                            datasets: [{
-                                data: status.values,
-                                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']
-                            }]
-                        },
-                        options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-                    });
-                }
+                // // 5. Project Status Chart (Polar Area)
+                // if (canvases.status) {
+                //     new Chart(canvases.status, {
+                //         type: 'polarArea',
+                //         data: {
+                //             labels: status.labels,
+                //             datasets: [{
+                //                 data: status.values,
+                //                 backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']
+                //             }]
+                //         },
+                //         options: { maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+                //     });
+                // }
             }
 
             // Event Listeners
