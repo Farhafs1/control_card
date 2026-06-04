@@ -114,8 +114,17 @@
                                 Assign MDAs
                             </button>
                         @endif
+                        {{-- Inside the Action column in your table --}}
                         <button wire:click="edit({{ $user->id }})" class="text-slate-400 hover:text-emerald-600 transition font-bold text-[10px] uppercase">Edit</button>
+
+                        <button 
+                            wire:click="deleteUser({{ $user->id }})" 
+                            wire:confirm="Are you sure you want to delete this user?"
+                            class="text-red-400 hover:text-red-600 transition font-bold text-[10px] uppercase ml-3">
+                            Delete
+                        </button>
                     </td>
+
                 </tr>
                 @endforeach
             </tbody>

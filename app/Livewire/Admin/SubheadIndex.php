@@ -35,16 +35,19 @@ class SubheadIndex extends Component
         $mdas = Mda::query()
             ->when($this->search, function ($query) {
                 $query->where(function($q) {
-                    $q->where('name', 'like', '%' . $this->search . '%')
-                      ->orWhere('mda_code', 'like', '%' . $this->search . '%');
+                    $searchTerm = '%' . $this->search . '%';
+                    
+                    // Using 'ilike' for PostgreSQL case-insensitive search.
+                    // This handles both Name and MDA Code equally.
+                    $q->where('name', 'ilike', $searchTerm)
+                      ->orWhere('mda_code', 'ilike', $searchTerm);
                 });
             })
             ->withSum('subheads as approved_total', 'approved_provision')
             ->withSum('subheads as additional_total', 'additional_provision')
-            ->orderBy('mda_code', 'asc') // Changed from 'name' to 'mda_code'
+            ->orderBy('mda_code', 'asc')
             ->paginate(15);
 
-        // Explicitly pointing to the renamed file: resources/views/livewire/admin/subheads/subhead-index.blade.php
         return view('livewire.admin.subheads.subhead-index', [
             'mdas' => $mdas
         ])->layout('layouts.app');

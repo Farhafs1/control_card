@@ -24,54 +24,10 @@ class UserManagement extends Component
     public $viewingUserId = null; // Store ID instead of the whole Model object
     public $mdaSearch = ''; 
 
-    public function rules()
-    {
-        return [
-            'name'      => 'required|string|max:255',
-            'email'     => [
-                'required',
-                'email',
-                Rule::unique('users', 'email')->ignore($this->viewingUserId),
-            ],
-            'staff_no'  => 'required|string',
-            'role'      => 'required|string',
-            'is_active' => 'boolean',
-        ];
-    }
-
     // Helper to get the user being viewed
     public function getViewingUserProperty()
     {
         return $this->viewingUserId ? User::find($this->viewingUserId) : null;
-    }
-
-    public function save()
-    {
-        $this->validate();
-
-        $data = [
-            'name' => $this->name,
-            'email' => $this->email,
-            'staff_no' => $this->staff_no,
-            'role' => $this->role,
-            'is_active' => $this->is_active,
-        ];
-
-        if ($this->password) {
-            $data['password'] = Hash::make($this->password);
-        }
-
-        if ($this->editingUserId) {
-            User::find($this->editingUserId)->update($data);
-            $this->dispatch('swal:toast', 'Staff profile updated successfully');
-        } else {
-            User::create($data);
-            $this->dispatch('swal:toast', 'Staff created successfully');
-        }
-
-        // Clean up everything completely back to base defaults
-        $this->reset(['name', 'email', 'password', 'staff_no', 'showForm', 'editingUserId']);
-        $this->role = 'officer'; 
     }
 
     public function edit($id)
@@ -143,5 +99,60 @@ class UserManagement extends Component
             // Pass the viewingUser explicitly to the view
             'viewingUser' => $this->viewingUser 
         ]);
+    }
+
+    public function rules()
+    {
+        return [
+            'name'      => 'required|string|max:255',
+            // If editing, ignore the current user's ID
+            'email'     => [
+                'required', 
+                'email', 
+                Rule::unique('users', 'email')->ignore($this->editingUserId),
+            ],
+            'staff_no'  => 'required|string',
+            'role'      => 'required|string',
+            'is_active' => 'boolean',
+            // Password is only required if creating a new user
+            'password'  => $this->editingUserId ? 'nullable|min:6' : 'required|min:6',
+        ];
+    }
+
+    public function save()
+    {
+        $this->validate();
+
+        $data = [
+            'name' => $this->name,
+            'email' => $this->email,
+            'staff_no' => $this->staff_no,
+            'role' => $this->role,
+            'is_active' => $this->is_active,
+        ];
+
+        // Only update password if a new one is provided
+        if (!empty($this->password)) {
+            $data['password'] = Hash::make($this->password);
+        }
+
+        if ($this->editingUserId) {
+            User::find($this->editingUserId)->update($data);
+            $this->dispatch('swal:toast', 'Staff profile updated successfully');
+        } else {
+            User::create($data);
+            $this->dispatch('swal:toast', 'Staff created successfully');
+        }
+
+        $this->reset(['name', 'email', 'password', 'staff_no', 'showForm', 'editingUserId', 'role']);
+        $this->role = 'officer';
+    }
+
+    public function deleteUser($id)
+    {
+        $user = User::findOrFail($id);
+        // Add logic to prevent deleting yourself or the last admin if needed
+        $user->delete();
+        $this->dispatch('swal:toast', 'User deleted successfully');
     }
 }
