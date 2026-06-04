@@ -1,3 +1,3 @@
-UPDATE scraped_releases 
-SET narration = 'I am directed to convey approval for the release of (N3,453,899,145.38) only to the Accountant General, Ministry of Finance for the payment of January 2026 salaries to Katsina State Civil Servants, Political/Public Office Holders, Staff as follows:  ', updated_at = DATETIME('now')
-WHERE reference_no = '26011469';
+UPDATE releases 
+SET narration = 'I am directed to convey approval of His Excellency, the Governor for the release of (760,487,509.04) in order to settle recurrent services in Critical Areas and other State Ministries, Departments and Agencies for the month of May, 2026', updated_at = DATETIME('now')
+WHERE reference_no = 'KTS/MBEP/BD/REC/OVERHEAD/05';

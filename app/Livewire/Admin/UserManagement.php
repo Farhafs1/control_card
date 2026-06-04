@@ -7,6 +7,7 @@ use App\Models\Mda;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class UserManagement extends Component
 {
@@ -23,14 +24,18 @@ class UserManagement extends Component
     public $viewingUserId = null; // Store ID instead of the whole Model object
     public $mdaSearch = ''; 
 
-    protected function rules()
+    public function rules()
     {
         return [
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $this->editingUserId,
-            'staff_no' => 'required|unique:users,staff_no,' . $this->editingUserId,
-            'password' => $this->editingUserId ? 'nullable|min:8' : 'required|min:8',
-            'role' => 'required|in:admin,officer',
+            'name'      => 'required|string|max:255',
+            'email'     => [
+                'required',
+                'email',
+                Rule::unique('users', 'email')->ignore($this->viewingUserId),
+            ],
+            'staff_no'  => 'required|string',
+            'role'      => 'required|string',
+            'is_active' => 'boolean',
         ];
     }
 
