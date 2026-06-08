@@ -27,14 +27,14 @@
             </div>
 
             {{-- Status Filter --}}
-            <select wire:model.live="filterStatus" 
+            <!-- <select wire:model.live="filterStatus" 
                 class="w-full sm:w-44 py-3 border-none rounded-2xl shadow-sm ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-500 text-sm font-medium text-slate-600">
                 <option value="all">All Statuses</option>
-                <!-- <option value="pending">⏳ Pending</option>
+                <option value="pending">⏳ Pending</option>
                 <option value="vetted">🔍 Vetted</option> -->
-                <option value="approved">✅ Approved</option>
+                <!-- <option value="approved">✅ Approved</option> -->
                 <!-- <option value="released">💰 Released</option> -->
-            </select>
+            <!-- </select> --> 
         </div>
     </div>
 
