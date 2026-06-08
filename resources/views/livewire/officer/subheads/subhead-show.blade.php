@@ -3,7 +3,6 @@
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
             <nav class="flex items-center gap-4 mb-2">
-                {{-- Back to Officer Subheads List --}}
                 <a href="{{ route('officer.subheads') }}" 
                    wire:navigate
                    class="group flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 transition-all duration-300">
@@ -15,14 +14,13 @@
                 <ol class="inline-flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest">
                     <li><a href="{{ route('officer.subheads') }}" wire:navigate class="text-emerald-600 hover:text-emerald-700 transition-colors">My MDAs</a></li>
                     <li class="text-slate-300">/</li>
-                    <li class="text-slate-500">{{ $mda->mda_code }}</li>
+                    <li class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-bold">{{ $mda->mda_code }}</li>
                 </ol>
             </nav>
             <h2 class="serif text-4xl text-slate-900 tracking-tight">{{ $mda->name }}</h2>
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Budget Allocation Details</p>
         </div>
         
-        {{-- Total MDA Provision Badge --}}
         <div class="bg-slate-900 px-16 py-4 rounded-3xl shadow-xl shadow-slate-200">
             <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Assigned Portfolio Total</p>
             <p class="text-2xl font-mono font-bold text-white">₦{{ number_format($mdaTotal, 2) }}</p>
@@ -61,7 +59,7 @@
             <table class="w-full text-left border-separate border-spacing-0 relative z-0">
                 <thead class="sticky top-0 z-50">
                     <tr>
-                        <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest border-b border-slate-100 bg-slate-50">Code</th>
+                        <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest border-b border-slate-100 bg-slate-50">MDA/Subhead Codes</th>
                         <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest border-b border-slate-100 bg-slate-50">Subhead Description</th>
                         <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50">Approved</th>
                         <th class="px-8 py-5 text-sm font-black text-slate-700 uppercase tracking-widest text-right border-b border-slate-100 bg-slate-50">Additional</th>
@@ -72,7 +70,11 @@
                 <tbody class="divide-y divide-slate-50">
                     @forelse($subheads as $subhead)
                         <tr class="hover:bg-emerald-50/20 transition-colors group">
-                            <td class="px-8 py-5 font-mono font-bold text-m text-slate-700">{{ $subhead->subhead_code }}</td>
+                            {{-- Combined MDA and Subhead Code --}}
+                            <td class="px-8 py-5">
+                                <div class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{{ $mda->mda_code }}</div>
+                                <div class="font-mono font-black text-slate-900 text-lg">{{ $subhead->subhead_code }}</div>
+                            </td>
                             <td class="px-8 py-5 text-sm font-bold text-slate-800 uppercase tracking-tight">{{ $subhead->description }}</td>
                             <td class="px-8 py-5 text-right font-mono font-bold text-m text-slate-700">
                                 {{ number_format($subhead->approved_provision, 2) }}
@@ -84,7 +86,6 @@
                                 ₦{{ number_format($subhead->total_budget, 2) }}
                             </td>
                             <td class="px-8 py-5 text-center">
-                                {{-- Link to the Officer version of the Bin Card --}}
                                 <a href="{{ route('officer.subheads.bin-card', $subhead->id) }}" 
                                    wire:navigate
                                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-100 text-[14px] font-black uppercase tracking-widest text-slate-800 hover:bg-emerald-900 hover:text-white transition-all duration-300 shadow-sm"
@@ -99,17 +100,7 @@
                     @empty
                         <tr>
                             <td colspan="6" class="px-8 py-24 text-center">
-                                <div class="inline-flex flex-col items-center">
-                                    <div class="p-4 bg-slate-50 rounded-full mb-4">
-                                        <svg class="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                    </div>
-                                    <p class="text-slate-500 font-bold uppercase tracking-widest text-[10px]">No Records Found</p>
-                                    <p class="text-slate-400 text-sm mt-1 italic">
-                                        No subheads matched the category "{{ $activeCategory }}".
-                                    </p>
-                                </div>
+                                <p class="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No Records Found</p>
                             </td>
                         </tr>
                     @endforelse

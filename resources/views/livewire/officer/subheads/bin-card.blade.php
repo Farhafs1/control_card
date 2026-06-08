@@ -75,7 +75,7 @@
                     <li class="text-slate-300">/</li>
                     <li><a href="{{ route('officer.subheads.show', $subhead->mda_id) }}" class="text-slate-400 hover:text-slate-600 transition-colors">{{ $subhead->mda->name }}</a></li>
                     <li class="text-slate-300">/</li>
-                    <li class="text-slate-500">Control Card: {{ $subhead->subhead_code }}</li>
+                    <li class="text-slate-500">{{ $subhead->subhead_code }}</li>
                 </ol>
             </nav>
             <div class="flex items-baseline gap-3">
@@ -89,20 +89,32 @@
             </p>
         </div>
         
-        <div class="bg-slate-900 px-8 py-5 rounded-[2.5rem] shadow-xl flex items-center gap-8 border border-white/5">
-            <div class="border-r border-white/10 pr-8">
-                <p class="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Approved Provision</p>
-                <p class="text-xl font-mono font-bold text-slate-300">₦{{ number_format($subhead->total_budget, 2) }}</p>
+        <div class="w-full bg-slate-900 px-8 py-1 rounded-3xl shadow-xl border border-white/5 space-y-2">
+    
+            {{-- Approved Provision --}}
+            <div class="grid grid-cols-[250px_1fr] items-center gap-4">
+                <p class="text-sm font-black text-slate-500 uppercase tracking-[0.2em] text-right">Approved Provision:</p>
+                <div class="border-l border-white/10 pl-4 py-1">
+                    <p class="text-xl font-bold text-slate-300">₦{{ number_format($subhead->total_budget, 2) }}</p>
+                </div>
             </div>
 
-            <div>
-                <div class="flex items-center gap-2 mb-1">
-                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Unspent Balance</p>
-                    <span class="text-[28px] font-black px-1.5 py-0.5 rounded bg-white/10 {{ $statusColor }}">
-                        {{ number_format($percentLeft, 1) }}%
-                    </span>
+            {{-- Total Expenditure --}}
+            <div class="grid grid-cols-[250px_1fr] items-center gap-4">
+                <p class="text-sm font-black text-slate-500 uppercase tracking-[0.2em] text-right">Total Expenditure:</p>
+                <div class="border-l border-white/10 pl-4 py-1 flex items-baseline justify-between">
+                    <p class="text-xl font-bold text-slate-200">₦{{ number_format($totalSpent, 2) }}</p> 
+                    <p class="text-xl font-bold text-slate-400"> ({{ number_format($percentSpent, 1) }}%)</p>
                 </div>
-                <p class="text-2xl font-mono font-bold text-white">₦{{ number_format($balance, 2) }}</p>
+            </div>
+
+            {{-- Balance --}}
+            <div class="grid grid-cols-[250px_1fr] items-center gap-4">
+                <p class="text-sm font-black text-slate-500 uppercase tracking-[0.2em] text-right">Balance</p>
+                <div class="border-l border-white/10 pl-4 py-1 flex items-baseline justify-between">
+                    <p class="text-xl font-bold {{ $statusColor }}">₦{{ number_format($balance, 2) }}</p>
+                    <p class="text-xl font-bold {{ $statusColor }}"> ({{ number_format($percentLeft, 1) }}%)</p>
+                </div>
             </div>
         </div>
     </div>

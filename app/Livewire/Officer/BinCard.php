@@ -174,9 +174,14 @@ class BinCard extends Component
             ->orderBy('id', 'asc')
             ->get();
 
+        // Calculations
+        $totalBudget = $this->subhead->total_budget ?? 0;
         $totalExp = $releases->where('is_cancelled', '!=', true)->sum('amount');
-        $balance = $this->subhead->total_budget - $totalExp;
-        $percentLeft = ($this->subhead->total_budget > 0) ? ($balance / $this->subhead->total_budget) * 100 : 0;
+        $balance = $totalBudget - $totalExp;
+        
+        // Percentages
+        $percentSpent = ($totalBudget > 0) ? ($totalExp / $totalBudget) * 100 : 0;
+        $percentLeft = ($totalBudget > 0) ? ($balance / $totalBudget) * 100 : 0;
 
         $statusColor = match(true) {
             $balance < 0 => 'text-rose-600',
@@ -197,12 +202,13 @@ class BinCard extends Component
         };
 
         return view('livewire.officer.subheads.bin-card', [
-            'releases'             => $releases,
-            'totalExpenditure'     => $totalExp,
-            'balance'              => $balance,
-            'percentLeft'          => $percentLeft,
-            'statusColor'          => $statusColor,
-            'themeClasses'         => $theme 
+            'releases'           => $releases,
+            'totalSpent'         => $totalExp, // Renamed for consistency
+            'percentSpent'       => $percentSpent, // New variable
+            'balance'            => $balance,
+            'percentLeft'        => $percentLeft,
+            'statusColor'        => $statusColor,
+            'themeClasses'       => $theme 
         ])->layout('layouts.app');
     }
 }

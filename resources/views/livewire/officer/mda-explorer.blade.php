@@ -90,29 +90,37 @@
                                 $subTotalProv = $sub->approved_provision + $sub->additional_provision;
                                 $subSpent = $sub->releases_sum_amount ?? 0; 
                                 $balance = $subTotalProv - $subSpent; 
+                                
+                                // Calculate Percentages
+                                $spentPerc = $subTotalProv > 0 ? ($subSpent / $subTotalProv) * 100 : 0;
+                                $balPerc = $subTotalProv > 0 ? ($balance / $subTotalProv) * 100 : 0;
                             @endphp
                             <tr class="hover:bg-emerald-50/20 transition-colors group">
                                 <td class="px-8 py-5 font-bold">
                                     <div class="font-bold text-sm text-emerald-900 group-hover:text-emerald-700 transition-colors">{{ $sub->name }}</div>
                                     <div class="font-bold text-sm text-emerald-900 font-mono tracking-tighter">{{ $sub->subhead_code ?? 'SH-'.$sub->id }}</div>
-                                    
-                                    {{-- FIX 2: Subhead Description --}}
                                     @if($sub->description)
-                                        <div class="text-sm text-slate-500 mt-1 italic leading-tight max-w-xs">
-                                            {{ $sub->description }}
-                                        </div>
+                                        <div class="text-sm text-slate-500 mt-1 italic leading-tight max-w-xs">{{ $sub->description }}</div>
                                     @endif
                                 </td>
                                 <td class="px-8 py-5 font-medium text-gray-600 font-bold">₦{{ number_format($subTotalProv, 2) }}</td>
                                 
+                                {{-- Updated Expenditure Column --}}
                                 <td class="px-8 py-5 font-black text-emerald-800">
-                                    ₦{{ number_format($subSpent, 2) }}
+                                    <div>₦{{ number_format($subSpent, 2) }}</div>
+                                    <div class="text-[12px] font-bold text-emerald-600 uppercase">{{ number_format($spentPerc, 1) }}% Utilized</div>
                                 </td>
 
+                                {{-- Updated Balance Column --}}
                                 <td class="px-8 py-5">
-                                    <span class="px-4 py-4 rounded-full text-m font-black {{ $balance < 0 ? 'bg-red-100 text-red-700 shadow-sm shadow-red-100' : 'bg-yellow-100 text-yellow-800 shadow-sm shadow-yellow-100' }}">
-                                        ₦{{ number_format($balance, 2) }}
-                                    </span>
+                                    <div class="inline-flex flex-col">
+                                        <span class="px-4 py-2 rounded-full text-sm font-black {{ $balance < 0 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800' }}">
+                                            ₦{{ number_format($balance, 2) }}
+                                        </span>
+                                        <span class="text-[12px] font-bold text-gray-500 uppercase mt-1 px-1">
+                                            {{ number_format($balPerc, 1) }}% Remaining
+                                        </span>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
