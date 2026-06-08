@@ -1,47 +1,23 @@
 <div class="space-y-8">
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
         
-        <div class="lg:col-span-2 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-center">
+        <div class="lg:col-span-2 bg-white p-8 rounded-[2rem] border border-emerald-100 shadow-sm relative overflow-hidden flex flex-col justify-center">
             <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -mr-16 -mt-16 opacity-40"></div>
-            
             <div class="relative z-10">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Total Global Provision</p>
+                <p class="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Total Inflow (Revenue)</p>
                 <h3 class="text-4xl font-black text-slate-900 mt-2 leading-none">
-                    <span class="text-emerald-800 italic serif">₦</span> {{ number_format($totalBudget, 2) }}
+                    <span class="text-emerald-800 italic serif">₦</span> {{ number_format($totalRevenue, 2) }}
                 </h3>
-                <div class="mt-4 flex items-center gap-2">
-                    <span class="flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <p class="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Active Fiscal Year 2026</p>
-                </div>
             </div>
         </div>
 
-        <div class="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-between">
-            <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">MDAs Reporting</p>
-                <h3 class="text-2xl font-black text-slate-900 mt-2">
-                    {{ $activeMdas }} <span class="text-slate-300 text-lg italic">/ {{ $totalMdas }}</span>
+        <div class="lg:col-span-2 bg-white p-8 rounded-[2rem] border border-rose-100 shadow-sm relative overflow-hidden flex flex-col justify-center">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full -mr-16 -mt-16 opacity-40"></div>
+            <div class="relative z-10">
+                <p class="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em]">Total Outflow (Expenditure)</p>
+                <h3 class="text-4xl font-black text-slate-900 mt-2 leading-none">
+                    <span class="text-rose-800 italic serif">₦</span> {{ number_format($totalExpenditure, 2) }}
                 </h3>
-            </div>
-            <div class="mt-4 w-full bg-slate-50 rounded-full h-1.5 border border-slate-100 overflow-hidden">
-                <div class="bg-emerald-800 h-full transition-all duration-1000" 
-                     style="width: {{ $totalMdas > 0 ? ($activeMdas / $totalMdas) * 100 : 0 }}%"></div>
-            </div>
-        </div>
-
-        <div class="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Authorized Access</p>
-                <h3 class="text-2xl font-black text-slate-900 mt-1">{{ $totalStaff }}</h3>
-                <p class="text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-wider">Staff Online</p>
-            </div>
-            <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
-                <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A10.003 10.003 0 0012 3v1m0 0V3m0 1c3.517 0 6.799 1.009 9.571 2.753m-2.04 3.44l-.09-.054A10.003 10.003 0 0021 12h-1m1 0h1m-1 0a10.003 10.003 0 01-2.753 6.819l-.054.09M12 21v-1m0 1v1m0-1c-3.517 0-6.799-1.009-9.571-2.753m2.04-3.44l.09.054A10.003 10.003 0 013 12h1" stroke-width="2"/>
-                </svg>
             </div>
         </div>
     </div>
@@ -74,8 +50,12 @@
                         <span class="text-xs font-bold text-slate-500 font-mono">₦ {{ number_format($breakdown[$item['key']], 2) }}</span>
                     </div>
                     <div class="w-full bg-slate-50 rounded-full h-2 overflow-hidden border border-slate-100/50">
+                        @php
+                            $denominator = ($item['key'] === 'revenue') ? ($totalRevenue + $totalExpenditure) : ($totalRevenue + $totalExpenditure);
+                            $percentage = $denominator > 0 ? ($breakdown[$item['key']] / $denominator) * 100 : 0;
+                        @endphp
                         <div class="h-full {{ $item['color'] }} transition-all duration-1000 ease-out shadow-inner" 
-                             style="width: {{ $totalBudget > 0 ? ($breakdown[$item['key']] / $totalBudget) * 100 : 0 }}%"></div>
+                             style="width: {{ $percentage }}%"></div>
                     </div>
                 </div>
                 @endforeach

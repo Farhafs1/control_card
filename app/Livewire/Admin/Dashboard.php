@@ -12,13 +12,19 @@ class Dashboard extends Component
 {
     public function render()
     {
-        // General Totals
-        $totalBudget = Subhead::sum(DB::raw('approved_provision + additional_provision'));
-        
-        // Categorical Breakdown logic
+        // 1. Calculate Revenue (Inflow)
+        $totalRevenue = Subhead::whereHas('category', function($q) {
+            $q->where('type', 'Revenue');
+        })->sum(DB::raw('approved_provision + additional_provision'));
+
+        // 2. Calculate Expenditure (Outflow) - Everything except Revenue
+        $totalExpenditure = Subhead::whereHas('category', function($q) {
+            $q->where('type', '<>', 'Revenue');
+        })->sum(DB::raw('approved_provision + additional_provision'));
+
+        // Keep categorical breakdown for the chart
         $categories = ['Revenue', 'Personnel', 'Overhead', 'Capital'];
         $breakdown = [];
-        
         foreach ($categories as $cat) {
             $breakdown[strtolower($cat)] = Subhead::whereHas('category', function($q) use ($cat) {
                 $q->where('type', $cat);
@@ -26,11 +32,12 @@ class Dashboard extends Component
         }
 
         return view('livewire.admin.dashboard', [
-            'totalBudget' => $totalBudget,
+            'totalRevenue' => $totalRevenue,
+            'totalExpenditure' => $totalExpenditure,
+            'breakdown' => $breakdown,
             'totalMdas' => Mda::count(),
             'activeMdas' => Mda::has('subheads')->count(),
             'totalStaff' => User::where('role', 'officer')->count(),
-            'breakdown' => $breakdown,
             'recentActivity' => Subhead::with('mda')->latest()->take(6)->get()
         ]);
     }
