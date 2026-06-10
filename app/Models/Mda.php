@@ -77,9 +77,14 @@ class Mda extends Model
     /**
      * RELATIONSHIP: Tracking all expenditure releases for this MDA.
      */
+    // public function releases(): HasMany
+    // {
+    //     return $this->hasMany(Release::class, 'mda_id');
+    // }
     public function releases(): HasMany
     {
-        return $this->hasMany(Release::class, 'mda_id');
+        // Ensure we are using the 'mda_id' foreign key on the releases table
+        return $this->hasMany(Release::class, 'mda_id', 'id');
     }
 
     /**

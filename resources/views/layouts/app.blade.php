@@ -185,6 +185,9 @@
                     <x-nav-link href="{{ route('officer.recent-releases') }}" :active="request()->routeIs('officer.recent-releases')" wire:navigate class="flex items-center px-6">
                         <i class="fas fa-history w-6"></i> <span x-show="!isMinimized" class="ml-3">Recent Releases</span>
                     </x-nav-link>
+                    <x-nav-link href="{{ route('officer.budget-performance') }}" :active="request()->routeIs('officer.budget-performance')" wire:navigate class="flex items-center px-6">
+                        <i class="fas fa-chart-line w-6"></i> <span x-show="!isMinimized" class="ml-3">Budget Performance</span>
+                    </x-nav-link>
                     <div class="my-4 border-t border-slate-800/50"></div>
                     <div class="px-6 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Account</div>
                     <x-nav-link href="{{ route('officer.profile') }}" :active="request()->routeIs('officer.profile')" wire:navigate class="flex items-center px-6">

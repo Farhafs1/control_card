@@ -153,7 +153,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/subheads/bin-card/{subhead}', \App\Livewire\Officer\BinCard::class)->name('subheads.bin-card');
         Route::get('/profile', \App\Livewire\Officer\ProfileSettings::class)->name('profile');
         Route::get('/explorer/{selectedMdaId?}', \App\Livewire\Officer\MdaExplorer::class)->name('mda-explorer');
-        
+        Route::get('/budget-performance', \App\Livewire\Officer\BudgetPerformance::class)->name('budget-performance');
+
+        // Consolidated Export Route
+        // Since we are inside prefix('officer'), this URL becomes /officer/export
+        Route::get('/export', [\App\Http\Controllers\Officer\PerformanceExportController::class, 'export'])
+            ->name('export');
+
         Route::get('/', function () {
             return redirect()->route('officer.dashboard');
         });

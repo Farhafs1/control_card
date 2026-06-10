@@ -58,9 +58,13 @@ class User extends Authenticatable
     /**
      * A User (Budget Officer) can be assigned many MDAs.
      */
+    // In app/Models/User.php
+    // app/Models/User.php
+
     public function mdas(): HasMany
     {
-        return $this->hasMany(Mda::class);
+        // Explicitly define the foreign key 'user_id'
+        return $this->hasMany(Mda::class, 'user_id', 'id');
     }
 
     /*
@@ -104,5 +108,15 @@ class User extends Authenticatable
             'description' => "{$action} User Account: {$model->name} (Staff No: {$model->staff_no}) - Role: {$model->role}, Status: {$status}",
             'ip_address' => request()->ip(),
         ]);
+    }
+
+    /**
+     * A User can be assigned many MDAs via a pivot table.
+     * Make sure your pivot table is named 'mda_user' 
+     * (or specify the table name in the second argument).
+     */
+    public function assignedMdas()
+    {
+        return $this->belongsToMany(Mda::class, 'mda_user', 'user_id', 'mda_id');
     }
 }
