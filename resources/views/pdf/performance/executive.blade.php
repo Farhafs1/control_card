@@ -100,19 +100,25 @@
 
             @foreach($summary as $row)
                 @php
-                    $app = $row['total_prov'] ?? 0;
-                    $q1  = $row['q1'] ?? 0;
-                    $q2  = $row['q2'] ?? 0;
-                    $q3  = $row['q3'] ?? 0;
-                    $q4  = $row['q4'] ?? 0;
-                    $tot = $row['total'] ?? 0;
-                    $perf = $row['perf'] ?? 0;
+                    // Ensure $row is treated as an object for consistent key access
+                    $row = (object) $row;
+
+                    // Smart fallback: Check for budget (Officer) first, then total_prov (Admin)
+                    $app = (float)($row->budget ?? ($row->total_prov ?? 0));
+                    
+                    $q1  = (float)($row->q1 ?? 0);
+                    $q2  = (float)($row->q2 ?? 0);
+                    $q3  = (float)($row->q3 ?? 0);
+                    $q4  = (float)($row->q4 ?? 0);
+                    
+                    $tot = (float)($row->total ?? 0);
+                    $perf = (float)($row->perf ?? 0);
 
                     $gApp += $app; $gQ1 += $q1; $gQ2 += $q2; $gQ3 += $q3; $gQ4 += $q4; $gTot += $tot;
                 @endphp
+                
                 <tr>
-                    <td class="label-cell">{{ $row['label'] }}</td>
-                    {{-- Using HTML entity &#8358; for Naira symbol --}}
+                    <td class="label-cell">{{ $row->label ?? $row['label'] }}</td>
                     <td class="approved-cell">&#8358;{{ number_format($app, 2) }}</td>
                     
                     <td>

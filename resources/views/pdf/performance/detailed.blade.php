@@ -138,39 +138,51 @@
         <tbody>
             @foreach($results as $mda)
                 @php
-                    // 1. Calculate MDA Totals by summing all its subheads
-                    $mdaProv = $mda->subheads->sum(fn($s) => $s->approved_provision + $s->additional_provision);
-                    $mdaActual = $mda->subheads->sum('releases_sum_amount');
+                    // Normalize to object
+                    $mda = (object) $mda;
+                    // Ensure subheads is always a collection, regardless of input type
+                    $subheads = isset($mda->subheads) ? collect($mda->subheads) : collect([]);
+
+                    // 1. Calculate MDA Totals using the collection
+                    $mdaProv = $subheads->sum(fn($s) => 
+                        ((float)($s->approved_provision ?? $s['approved_provision'] ?? 0)) + 
+                        ((float)($s->additional_provision ?? $s['additional_provision'] ?? 0))
+                    );
+                    $mdaActual = $subheads->sum(fn($s) => 
+                        (float)($s->releases_sum_amount ?? $s['releases_sum_amount'] ?? 0)
+                    );
                     $mdaBalance = $mdaProv - $mdaActual;
-                    
-                    // MDA Percentage = (Total Subhead Releases / Total Subhead Provision) * 100
                     $mdaPerf = $mdaProv > 0 ? ($mdaActual / $mdaProv) * 100 : 0;
                 @endphp
 
                 <tr class="mda-row">
-                    <td colspan="2" class="mda-name">{{ $mda->mda_code }} - {{ $mda->name }} </td>
+                    <td colspan="2" class="mda-name">{{ $mda->mda_code ?? ($mda['mda_code'] ?? 'N/A') }} - {{ $mda->name ?? ($mda['name'] ?? 'N/A') }} </td>
                     <td class="text-right mda-name">{{ number_format($mdaProv, 2) }}</td>
                     <td class="text-right mda-name">{{ number_format($mdaActual, 2) }}</td>
                     <td class="text-right mda-name">{{ number_format($mdaBalance, 2) }}</td>
                     <td class="text-center mda-name">{{ number_format($mdaPerf, 1) }}%</td>
                 </tr>
 
-                @foreach($mda->subheads as $sh)
+                @foreach($subheads as $sh)
                     @php
-                        // 2. Individual Subhead Logic
-                        $provision = $sh->approved_provision + $sh->additional_provision;
+                        // 1. Ensure $sh is an array for consistent access
+                        // If it's a Model, toArray() converts it. If it's an array, it stays an array.
+                        $sh = ($sh instanceof \Illuminate\Database\Eloquent\Model) ? $sh->toArray() : (array) $sh;
+
+                        // 2. Now use only array syntax consistently
+                        $approved = (float)($sh['approved_provision'] ?? 0);
+                        $additional = (float)($sh['additional_provision'] ?? 0);
+                        $provision = $approved + $additional;
                         
-                        // This comes from the ->withSum('releases', 'amount') in your controller
-                        $actualSum = $sh->releases_sum_amount ?? 0; 
-                        
+                        $actualSum = (float)($sh['releases_sum_amount'] ?? 0); 
                         $balance = $provision - $actualSum;
                         
-                        // Performance = (Sum of all releases for this subhead / Total Provision) * 100
                         $perf = $provision > 0 ? ($actualSum / $provision) * 100 : 0;
                     @endphp
+
                     <tr>
-                        <td style="font-family: monospace;">{{ $sh->subhead_code }}</td>
-                        <td>{{ $sh->description }}</td>
+                        <td style="font-family: monospace;">{{ $sh['subhead_code'] ?? 'N/A' }}</td>
+                        <td>{{ $sh['description'] ?? 'N/A' }}</td>
                         <td class="text-right">{{ number_format($provision, 2) }}</td>
                         <td class="text-right">{{ number_format($actualSum, 2) }}</td>
                         <td class="text-right">{{ number_format($balance, 2) }}</td>
@@ -179,7 +191,7 @@
                         </td>
                     </tr>
                 @endforeach
-            @endforeach
+            @endforeach        
         </tbody>
     </table>
 

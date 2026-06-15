@@ -95,19 +95,29 @@
                 $gApp = 0; $gAdd = 0; $gTot = 0; $gAct = 0; 
             @endphp
 
-            @foreach($summary as $row)
+            {{-- 1. Ensure you are looping over the nested key --}}
+            @php
+                // Detect if we are using the nested (Officer) or flat (Admin) structure
+                $rows = isset($summary['full_list']) ? $summary['full_list'] : $summary;
+            @endphp
+
+            @foreach($rows as $row)
                 @php
-                    $app = $row['approved'] ?? 0;
+                    // Ensure we are working with an array for consistent key access
+                    $row = (array) $row;
+                    
+                    $app = $row['approved'] ?? ($row['budget'] ?? 0);
                     $add = $row['additional'] ?? 0;
                     $total_prov = $row['total_prov'] ?? ($app + $add);
-                    $actual = $row['actual'] ?? 0;
+                    $actual = $row['actual'] ?? ($row['total'] ?? 0);
                     $balance = $row['balance'] ?? ($total_prov - $actual);
                     $perf = $row['perf'] ?? 0;
 
                     $gApp += $app; $gAdd += $add; $gTot += $total_prov; $gAct += $actual;
                 @endphp
+                
                 <tr>
-                    <td class="label-cell">{{ $row['label'] }}</td>
+                    <td class="label-cell">{{ $row['label'] ?? 'N/A' }}</td>
                     <td>&#8358;{{ number_format($app, 2) }}</td>
                     <td style="color: #2563eb;">&#8358;{{ number_format($add, 2) }}</td>
                     <td class="provision-cell">&#8358;{{ number_format($total_prov, 2) }}</td>

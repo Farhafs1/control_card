@@ -1,13 +1,32 @@
 <div class="space-y-6 print:p-0">
     {{-- Summary Cards --}}
+    @php
+        // Initialize global totals before the loop starts
+        $gApp = 0;
+        $gTot = 0;
+    @endphp
+
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         @foreach($dataset as $row)
             @php
-                $label = $row->label;
+                // Ensure object access for consistency
+                $row = (object) $row;
+                
+                $label  = $row->label ?? 'N/A';
+                $app    = (float)($row->budget ?? ($row->total_prov ?? 0));
                 $actual = (float)($row->total ?? 0);
-                $perf  = (float)($row->perf ?? 0);
+                
+                // Dynamic Performance Calculation: (Actual / Budget) * 100
+                // We use the local $app and $actual to ensure accuracy
+                $perf   = ($app > 0) ? ($actual / $app) * 100 : 0;
+                
                 $cardColor = str_contains(strtolower($label), 'revenue') ? 'border-blue-600' : 'border-green-700';
+                
+                // Update global totals
+                $gApp  += $app;
+                $gTot  += $actual;
             @endphp
+            
             <div class="bg-white border-t-4 {{ $cardColor }} rounded-xl shadow-md p-5">
                 <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{{ $label }}</p>
                 <h4 class="text-xl font-black text-gray-900">₦{{ number_format($actual, 0) }}</h4>
@@ -17,6 +36,8 @@
                         <div class="bg-green-600 h-1.5 rounded-full" style="width: {{ min($perf, 100) }}%"></div>
                     </div>
                 </div>
+                {{-- Optional: Display the budget on the card for validation --}}
+                <p class="text-[9px] text-gray-500 mt-2">Budget: ₦{{ number_format($app, 0) }}</p>
             </div>
         @endforeach
     </div>

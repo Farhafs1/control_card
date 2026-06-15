@@ -64,7 +64,7 @@ class PerformanceExportController extends Controller
 
         if ($format === 'excel' || ($format === 'csv' && $type === 'detailed')) {
             if ($type === 'detailed') {
-                return $this->downloadExcel($data, $type, $rawQuarter);
+                return $this->downloadExcel($data, $type, $rawQuarter, $year);
             }
             return $this->downloadCsv($data, $type, $rawQuarter);
         }
@@ -342,20 +342,22 @@ class PerformanceExportController extends Controller
     /**
      * Compiles detailed data elements into styled structural Microsoft Excel binary outputs.
      */
-    private function downloadExcel($data, $type, $quarter)
+    private function downloadExcel($data, $type, $quarter, $year)
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $displayQuarter = ($quarter === 'all') ? 'Full Year' : "Quarter $quarter";
         
-        $headers = ['Code', 'Description (Subhead)', 'Approved Provision', 'Actual Qtr (Total)', 'Utilization (%)'];
+        // Dynamic headers based on inputs
+        $displayQuarter = ($quarter === 'all') ? 'Full Year' : "Quarter $quarter"; 
+        $provisionHeader = "{$year} Approved Provision";
+        $actualHeader = "Actual {$displayQuarter} Perf.";
+        
+        // 1. Headers
+        $headers = ['Code', 'Description (Subhead)', $provisionHeader, $actualHeader, 'Balance', 'Utilization (%)'];
         $sheet->fromArray($headers, NULL, 'A1');
-        $sheet->getStyle('A1:E1')->applyFromArray([
+        $sheet->getStyle('A1:F1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FF15803D'] 
-            ]
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF15803D']]
         ]);
 
         $currentRow = 2;
@@ -363,54 +365,59 @@ class PerformanceExportController extends Controller
         foreach ($data as $mda) {
             $mdaTotalProv = $mda->subheads->sum(fn($s) => $s->approved_provision + $s->additional_provision);
             $mdaTotalActual = $mda->subheads->sum('releases_sum_amount');
+            $mdaBalance = $mdaTotalProv - $mdaTotalActual;
             $mdaPerf = $mdaTotalProv > 0 ? ($mdaTotalActual / $mdaTotalProv) * 100 : 0;
 
-            $mdaTitle = ($mda->mda_code ?? '') . ' - ' . $mda->name;
-            $sheet->setCellValue("A$currentRow", $mdaTitle . " (Performance: " . number_format($mdaPerf, 1) . "%)");
+            // MDA Summary Header Row (Aggregated totals in columns)
+            $sheet->setCellValue("A$currentRow", ($mda->mda_code ?? '') . ' - ' . $mda->name);
+            $sheet->setCellValue("C$currentRow", $mdaTotalProv);
+            $sheet->setCellValue("D$currentRow", $mdaTotalActual);
+            $sheet->setCellValue("E$currentRow", $mdaBalance);
+            $sheet->setCellValue("F$currentRow", number_format($mdaPerf, 1) . '%');
             
-            $sheet->mergeCells("A$currentRow:E$currentRow");
-            $sheet->getStyle("A$currentRow:E$currentRow")->applyFromArray([
+            // Styling the Summary Header
+            $sheet->getStyle("A$currentRow:F$currentRow")->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
-                'fill' => [
-                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                    'startColor' => ['argb' => 'FF1F2937'] 
-                ]
+                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF1F2937']]
             ]);
+            
+            // Format Currency in the Summary Header
+            $sheet->getStyle("C$currentRow:E$currentRow")->getNumberFormat()->setFormatCode('"₦"#,##0.00');
+            $sheet->getStyle("C$currentRow:F$currentRow")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
             
             $currentRow++;
 
+            // Subhead Rows
             foreach ($mda->subheads as $subhead) {
                 $totalProvision = $subhead->approved_provision + $subhead->additional_provision;
                 $actual = $subhead->releases_sum_amount ?? 0;
+                $balance = $totalProvision - $actual;
                 $perf = $totalProvision > 0 ? ($actual / $totalProvision) * 100 : 0;
 
                 $sheet->setCellValue("A$currentRow", $subhead->subhead_code);
                 $sheet->setCellValue("B$currentRow", $subhead->description); 
                 $sheet->setCellValue("C$currentRow", $totalProvision);
                 $sheet->setCellValue("D$currentRow", $actual);
-                $sheet->setCellValue("E$currentRow", round($perf, 1) . '%');
+                $sheet->setCellValue("E$currentRow", $balance);
+                $sheet->setCellValue("F$currentRow", round($perf, 1) . '%');
                 
-                $sheet->getStyle("C$currentRow:D$currentRow")
-                    ->getNumberFormat()
-                    ->setFormatCode('"₦"#,##0.00');
-
-                $sheet->getStyle("C$currentRow:E$currentRow")
-                    ->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("C$currentRow:E$currentRow")->getNumberFormat()->setFormatCode('"₦"#,##0.00');
+                $sheet->getStyle("C$currentRow:F$currentRow")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
 
                 $currentRow++;
             }
             
-            $currentRow++;
+            $currentRow++; // Extra space between MDAs
         }
 
-        foreach (range('A', 'E') as $col) {
+        foreach (range('A', 'F') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
         $fileName = "Detailed_Performance_{$displayQuarter}.xlsx";
 
         return response()->streamDownload(function() use ($spreadsheet) {
-            $writer = new Xlsx($spreadsheet);
+            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
             $writer->save('php://output');
         }, $fileName);
     }

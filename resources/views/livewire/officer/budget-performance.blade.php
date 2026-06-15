@@ -5,6 +5,7 @@
             <h1 class="text-2xl font-bold text-gray-900">Portfolio Performance Analytics</h1>
             <p class="text-sm text-gray-600">Monitoring assigned MDAs and fiscal control.</p>
         </div>
+        
         <div class="flex space-x-3">
             {{-- Print Button --}}
             <button onclick="window.print()" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 transition">
@@ -12,15 +13,18 @@
             </button>
 
             {{-- Export Excel Button --}}
-            <button wire:click="export('excel')" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 transition">
-                Export Excel
-            </button>
+            @if($reportType === 'detailed')
+                <button wire:click="export" 
+                        class="inline-flex items-center px-4 py-2 bg-green-700 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-800 transition">
+                    Export Excel
+                </button>
+            @endif
 
             {{-- Export PDF Button --}}
-            <a href="{{ route('officer.export', ['format' => 'pdf', 'type' => 'detailed', 'q' => $quarter ?? 'all']) }}" 
-            class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-700 transition">
+            <button wire:click="exportPdf" 
+                    class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-700 transition">
                 Export PDF
-            </a>
+            </button>
         </div>
     </div>
 

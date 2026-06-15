@@ -60,15 +60,23 @@ class BudgetPerformance extends Component
         ];
     }
 
-    public function export($type)
+    public function export()
     {
-        // You need a service or logic to handle the Excel generation.
-        // For now, let's just make sure the error goes away.
-        
-        // Example using a hypothetical service:
-        // return (new \App\Services\BudgetExportService)->download($this->quarter, $this->reportType, $this->categoryId);
+        return redirect()->route('officer.export', [
+            'type'   => $this->reportType,
+            'q'      => $this->quarter,
+            'cat'    => $this->categoryId,
+            'format' => 'excel'
+        ]);
+    }
 
-        // TEMPORARY: Just to verify it works
-        session()->flash('message', 'Export triggered for ' . $type);
+    public function exportPdf()
+    {
+        return redirect()->route('officer.export', [
+            'type'   => $this->reportType,
+            'q'      => $this->quarter,
+            'cat'    => $this->categoryId,
+            'format' => 'pdf'
+        ]);
     }
 }

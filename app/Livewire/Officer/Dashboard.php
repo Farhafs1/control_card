@@ -27,7 +27,7 @@ class Dashboard extends Component
             $spent = $subhead->releases->where('is_cancelled', false)->sum('amount');
             $balance = $subhead->total_budget - $spent;
             return $subhead->total_budget > 0 && ($balance / $subhead->total_budget) < 0.10;
-        })->take(5);
+        });
 
         return view('livewire.officer.dashboard', [
             'mdas' => $mdas,

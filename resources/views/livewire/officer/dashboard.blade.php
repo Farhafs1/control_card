@@ -90,9 +90,15 @@
             {{-- Critical Alerts Component Section --}}
             <div class="space-y-6">
                 <div class="bg-rose-50 p-6 rounded-3xl border border-rose-100 shadow-sm">
-                    <h3 class="text-xs font-black text-rose-700 uppercase mb-4 flex items-center tracking-wider">
-                        <i class="fas fa-exclamation-triangle mr-2"></i> Low Balance Alerts
-                    </h3>
+                    <div class="mb-4">
+                        <h3 class="text-xs font-black text-rose-700 uppercase tracking-wider flex items-center">
+                            <i class="fas fa-exclamation-triangle mr-2"></i> 
+                            Low Balance Alerts
+                        </h3>
+                        <p class="text-xs text-gray-600 mt-1">
+                            Subheads with less than 10% funds remaining
+                        </p>
+                    </div>
                     
                     {{-- Scrollable Container Element --}}
                     <div class="space-y-3 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-rose-200 scrollbar-track-transparent">

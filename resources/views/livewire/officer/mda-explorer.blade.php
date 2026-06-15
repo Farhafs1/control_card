@@ -70,28 +70,26 @@
                 <h4 class="font-black text-emerald-900 uppercase tracking-tighter text-lg">
                     Showing <span class="text-yellow-600">{{ $activeCategory }}</span> Details
                 </h4>
-                <button class="bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-900 transition-all shadow-lg">
+                <!-- <button class="bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-900 transition-all shadow-lg">
                     <i class="fas fa-file-export mr-2"></i> Export {{ $activeCategory }}
-                </button>
+                </button> -->
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead class="bg-gray-50 text-sm font-bold uppercase font-black text-emerald-800 tracking-widest">
+                    <thead class="bg-emerald-900 text-sm font-bold uppercase text-emerald-50 tracking-wider shadow-md">
                         <tr>
-                            <th class="px-8 py-5">Subhead / Line Item</th>
-                            <th class="px-8 py-5">Approved + Additional</th>
-                            <th class="px-8 py-5">Total Expenditure</th>
-                            <th class="px-8 py-5">Balance Available</th>
+                            <th class="px-8 py-5 text-left">Subhead / Line Item</th>
+                            <th class="px-8 py-5 text-right">Approved + Additional</th>
+                            <th class="px-8 py-5 text-right">Total Expenditure</th>
+                            <th class="px-8 py-5 text-right">Balance Available</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100 ">
+                    <tbody class="divide-y divide-gray-100">
                         @forelse($filteredSubheads as $sub)
                             @php 
                                 $subTotalProv = $sub->approved_provision + $sub->additional_provision;
                                 $subSpent = $sub->releases_sum_amount ?? 0; 
                                 $balance = $subTotalProv - $subSpent; 
-                                
-                                // Calculate Percentages
                                 $spentPerc = $subTotalProv > 0 ? ($subSpent / $subTotalProv) * 100 : 0;
                                 $balPerc = $subTotalProv > 0 ? ($balance / $subTotalProv) * 100 : 0;
                             @endphp
@@ -103,17 +101,19 @@
                                         <div class="text-sm text-slate-500 mt-1 italic leading-tight max-w-xs">{{ $sub->description }}</div>
                                     @endif
                                 </td>
-                                <td class="px-8 py-5 font-medium text-gray-600 font-bold">₦{{ number_format($subTotalProv, 2) }}</td>
                                 
-                                {{-- Updated Expenditure Column --}}
-                                <td class="px-8 py-5 font-black text-emerald-800">
+                                {{-- Added text-right to match header --}}
+                                <td class="px-8 py-5 font-medium text-gray-600 font-bold text-right">₦{{ number_format($subTotalProv, 2) }}</td>
+                                
+                                {{-- Added text-right to match header --}}
+                                <td class="px-8 py-5 font-black text-emerald-800 text-right">
                                     <div>₦{{ number_format($subSpent, 2) }}</div>
                                     <div class="text-[12px] font-bold text-emerald-600 uppercase">{{ number_format($spentPerc, 1) }}% Utilized</div>
                                 </td>
 
-                                {{-- Updated Balance Column --}}
-                                <td class="px-8 py-5">
-                                    <div class="inline-flex flex-col">
+                                {{-- Added text-right to align the flex-col container --}}
+                                <td class="px-8 py-5 text-right">
+                                    <div class="inline-flex flex-col items-end">
                                         <span class="px-4 py-2 rounded-full text-sm font-black {{ $balance < 0 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800' }}">
                                             ₦{{ number_format($balance, 2) }}
                                         </span>
