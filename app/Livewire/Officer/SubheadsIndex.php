@@ -42,10 +42,14 @@ class SubheadsIndex extends Component
 
     private function renderListView()
     {
+        // Determine the operator based on the database driver
+        $operator = config('database.default') === 'pgsql' ? 'ILIKE' : 'LIKE';
+        $searchTerm = '%' . $this->search . '%';
+
         $mdas = Auth::user()->mdas()
-            ->where(function($query) {
-                $query->where('name', 'like', '%'.$this->search.'%')
-                      ->orWhere('mda_code', 'like', '%'.$this->search.'%');
+            ->where(function($query) use ($operator, $searchTerm) {
+                $query->where('name', $operator, $searchTerm)
+                    ->orWhere('mda_code', $operator, $searchTerm);
             })
             ->withSum('subheads as total_provision', DB::raw('approved_provision + additional_provision'))
             ->paginate(10);

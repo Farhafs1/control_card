@@ -81,6 +81,8 @@ class ScrapeExpenditure extends Command
             $isHeadless = filter_var($this->option('headless'), FILTER_VALIDATE_BOOLEAN);
             $timeout = (int) $this->option('timeout');
             $batchSize = (int) $this->option('batch-size');
+            $user = 'yadamm';
+            $pass = 'Adamm@86';
             
             list($startLimit, $endLimit, $isManual) = $this->determineDateRange();
             
@@ -100,11 +102,64 @@ class ScrapeExpenditure extends Command
             
             // Connect and configure WebDriver
             $this->connectDriver($isHeadless, $timeout);
+
+            // --- 1. LOGIN (Existing functional logic) ---
+            $this->info("Step 1: Navigating to Login...");
+            $this->driver->get('https://kteb.katsinastate.gov.ng/login');
+            $this->info("Page title is: " . $this->driver->getTitle());
+            
+            $this->driver->wait(30)->until(
+                WebDriverExpectedCondition::visibilityOfElementLocated(WebDriverBy::name('username'))
+            );
+            
+            $this->info("Entering credentials...");
+            $this->driver->findElement(WebDriverBy::name('username'))->sendKeys($user);
+            $this->driver->findElement(WebDriverBy::name('password'))->sendKeys($pass);
+            
+            sleep(1); 
+
+            $this->info("Clicking Sign in...");
+            try {
+                $loginBtn = $this->driver->findElement(WebDriverBy::xpath("//button[contains(., 'Sign in')]"));
+                $loginBtn->click();
+            } catch (\Exception $e) {
+                $this->warn("Button click failed, trying ENTER key fallback...");
+                $this->driver->findElement(WebDriverBy::name('password'))->sendKeys([WebDriverKeys::ENTER]);
+            }
+            
+            // --- 2. NAVIGATION (Existing functional logic) ---
+            $this->info("Step 2: Starting Navigation...");
+
+            $parentMenu = $this->driver->wait(15)->until(
+                WebDriverExpectedCondition::elementToBeClickable(
+                    WebDriverBy::xpath("(//li[contains(@class, 'link_item') and contains(., 'Release Processing')])[1]")
+                )
+            );
+            $parentMenu->click();
+
+            $this->info("Waiting for sub-menu expansion...");
+            sleep(5); 
+
+            $this->info("Clicking the sub-menu collection link via JS...");
+            
+            try {
+                $xpath = "(//span[contains(@class, 'MuiListItemText-primary') and text()='Release Processing'])[last()]";
+                $this->driver->wait(10)->until(
+                    WebDriverExpectedCondition::presenceOfElementLocated(WebDriverBy::xpath($xpath))
+                );
+                $subMenuItem = $this->driver->findElement(WebDriverBy::xpath($xpath));
+                $this->driver->executeScript("arguments[0].click();", [$subMenuItem]);
+            } catch (\Exception $e) {
+                $this->error("Sub-menu click failed: " . $e->getMessage());
+                $this->driver->executeScript(
+                    "document.evaluate(\"(//li[contains(., 'Release Processing')])[last()]\", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.click();"
+                );
+            }
             
             // Navigate to portal
-            $this->logToCache('🌐 Navigating to E-Budget portal...');
-            $this->info('🌐 Navigating to E-Budget portal...');
-            $this->driver->get(self::PORTAL_URL);
+            $this->logToCache('🌐 Navigating Release Collection Table...');
+            $this->info('🌐 Navigating to Release Collection Table...');
+            // $this->driver->get(self::PORTAL_URL);
             
             // Wait for and validate table (YOUR PROVEN WAIT LOGIC)
             $this->waitForTable();
@@ -769,7 +824,7 @@ class ScrapeExpenditure extends Command
                     $this->driver->executeScript("window.scrollTo(0, 0);"); 
                     $this->driver->executeScript("arguments[0].click();", [$previewBtn]);
                     
-                    $this->logToCache("✅ Preview Button clicked for: " . $portalMdaName, 'success');
+                    $this->logToCache("Preview Button clicked for: " . $portalMdaName, 'success');
                     sleep(self::PREVIEW_DOCUMENT_WAIT_SECONDS);
                 } catch (\Exception $e) {
                     $this->logToCache("⚠️ Preview Document button missing.", 'warn');
@@ -923,7 +978,7 @@ class ScrapeExpenditure extends Command
                             'status_history' => $statusHistory
                         ]);
                         
-                        $this->logToCache("  🆕 Created: {$ref} ({$stat})", 'success');
+                        $this->logToCache("🆕 Created: {$ref} ({$stat})", 'success');
                         $this->metrics['records_created']++;
                         
                     }, 3); // transaction retry 3 times

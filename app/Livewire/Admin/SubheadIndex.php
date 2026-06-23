@@ -34,13 +34,13 @@ class SubheadIndex extends Component
     {
         $mdas = Mda::query()
             ->when($this->search, function ($query) {
-                $query->where(function($q) {
-                    $searchTerm = '%' . $this->search . '%';
-                    
-                    // Using 'ilike' for PostgreSQL case-insensitive search.
-                    // This handles both Name and MDA Code equally.
-                    $q->where('name', 'ilike', $searchTerm)
-                      ->orWhere('mda_code', 'ilike', $searchTerm);
+                $searchTerm = '%' . $this->search . '%';
+                // Determine operator: ILIKE for Postgres, LIKE for others (SQLite/MySQL)
+                $operator = config('database.default') === 'pgsql' ? 'ILIKE' : 'LIKE';
+                
+                $query->where(function($q) use ($operator, $searchTerm) {
+                    $q->where('name', $operator, $searchTerm)
+                    ->orWhere('mda_code', $operator, $searchTerm);
                 });
             })
             ->withSum('subheads as approved_total', 'approved_provision')

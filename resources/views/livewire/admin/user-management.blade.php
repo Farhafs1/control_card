@@ -42,9 +42,10 @@
 
                     <div>
                         <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Account Role</label>
-                        <select wire:model.live="role" class="w-full bg-slate-50 border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none border transition">
+                        <select wire:model="role" class="w-full border-gray-300 rounded-lg">
                             <option value="officer">Budget Officer</option>
-                            <option value="admin">System Administrator</option>
+                            <option value="analyst">Admin (Director/PS)</option>
+                            <option value="admin">Super Admin</option>
                         </select>
                         @error('role') <span class="text-red-500 text-[10px] mt-1 font-bold">{{ $message }}</span> @enderror
                     </div>

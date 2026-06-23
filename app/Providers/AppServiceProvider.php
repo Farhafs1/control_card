@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\URL; // Imported URL facade
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -52,17 +52,36 @@ class AppServiceProvider extends ServiceProvider
 
         // --- AUTHENTICATION GATES ---
 
-        // 1. GATE: Only allow Admins
-        Gate::define('admin-only', function (User $user) {
+        // Define specific gates
+        Gate::define('is-admin', function ($user) {
             return $user->role === 'admin';
         });
 
-        // 2. GATE: Only allow Budget Officers
+        Gate::define('is-analyst', function ($user) {
+            return $user->role === 'analyst';
+        });
+
+        // A combined gate for admin-only access (admin + analyst)
+        Gate::define('admin-only', function ($user) {
+            return in_array($user->role, ['admin', 'analyst']);
+        });
+
+        // Allow analysts to access admin routes (read-only)
+        Gate::define('access-analytics', function ($user) {
+            return in_array($user->role, ['admin', 'analyst']);
+        });
+
+        // Only allow Budget Officers
         Gate::define('officer-only', function (User $user) {
             return $user->role === 'officer';
         });
 
-        // 3. GATE: Global Safety (Only active users)
+        // Allow Analysts and Admins
+        Gate::define('analyst-or-admin', function (User $user) {
+            return $user->role === 'admin' || $user->role === 'analyst';
+        });
+
+        // Global Safety (Only active users)
         Gate::define('active-user', function (User $user) {
             return (bool) $user->is_active;
         });

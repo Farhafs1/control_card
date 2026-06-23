@@ -105,16 +105,15 @@ class UserManagement extends Component
     {
         return [
             'name'      => 'required|string|max:255',
-            // If editing, ignore the current user's ID
             'email'     => [
                 'required', 
                 'email', 
                 Rule::unique('users', 'email')->ignore($this->editingUserId),
             ],
             'staff_no'  => 'required|string',
-            'role'      => 'required|string',
+            // Update: Restrict role to valid system values
+            'role'      => ['required', Rule::in(['admin', 'analyst', 'officer'])],
             'is_active' => 'boolean',
-            // Password is only required if creating a new user
             'password'  => $this->editingUserId ? 'nullable|min:6' : 'required|min:6',
         ];
     }
@@ -127,11 +126,10 @@ class UserManagement extends Component
             'name' => $this->name,
             'email' => $this->email,
             'staff_no' => $this->staff_no,
-            'role' => $this->role,
+            'role' => $this->role, // This now safely accepts 'analyst'
             'is_active' => $this->is_active,
         ];
 
-        // Only update password if a new one is provided
         if (!empty($this->password)) {
             $data['password'] = Hash::make($this->password);
         }
@@ -144,8 +142,9 @@ class UserManagement extends Component
             $this->dispatch('swal:toast', 'Staff created successfully');
         }
 
-        $this->reset(['name', 'email', 'password', 'staff_no', 'showForm', 'editingUserId', 'role']);
-        $this->role = 'officer';
+        // Reset with explicit default
+        $this->reset(['name', 'email', 'password', 'staff_no', 'showForm', 'editingUserId']);
+        $this->role = 'officer'; 
     }
 
     public function deleteUser($id)
