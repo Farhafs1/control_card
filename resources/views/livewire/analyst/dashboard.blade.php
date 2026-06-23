@@ -69,10 +69,10 @@
                 @forelse($topPerformingMdas as $mda)
                 <div class="flex items-center justify-between border-b border-white/5 pb-4 last:border-0">
                     <div>
-                        <p class="text-sm font-bold text-white">{{ $mda->name }}</p>
-                        <p class="text-sm text-slate-700">Code: {{ $mda->mda_code }}</p>
+                        <p class="text-sm font-bold text-white">{{ $mda->name ?? 'N/A' }}</p>
+                        <p class="text-sm text-slate-700">Code: {{ $mda->mda_code ?? 'N/A' }}</p>
                     </div>
-                    <span class="text-sm font-black text-emerald-600">₦{{ number_format($mda->releases_sum_amount, 0) }}</span>
+                    <span class="text-sm font-black text-emerald-600">₦{{ number_format($mda->releases_sum_amount ?? 0, 0) }}</span>
                 </div>
                 @empty
                 <p class="text-slate-500 text-sm italic">No performance data available.</p>

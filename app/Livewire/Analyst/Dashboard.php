@@ -55,6 +55,34 @@ class Dashboard extends Component
             ];
         }
 
+        // 4. Top Performing MDAs - PostgreSQL Compatible
+        $topPerformingMdas = Mda::select(
+            'mdas.id',
+            'mdas.name',
+            'mdas.mda_code',
+            DB::raw('COALESCE(SUM(releases.amount), 0) as total_released')
+        )
+        ->leftJoin('releases', function($join) {
+            $join->on('mdas.id', '=', 'releases.mda_id')
+                 ->whereHas('subhead.category', function($q) {
+                     $q->whereIn('type', ['Personnel', 'Overhead', 'Capital']);
+                 });
+        })
+        ->where('mdas.is_active', true)
+        ->groupBy('mdas.id', 'mdas.name', 'mdas.mda_code')
+        ->orderBy('total_released', 'desc')
+        ->limit(5)
+        ->get()
+        ->map(function ($mda) {
+            // Normalize the property names for consistent access in blade
+            return (object) [
+                'id' => $mda->id,
+                'name' => $mda->name,
+                'mda_code' => $mda->mda_code,
+                'releases_sum_amount' => (float) $mda->total_released,
+            ];
+        });
+
         return view('livewire.analyst.dashboard', [
             // Revenue (Inflow)
             'revenueTotal'        => $revenueTotal,
@@ -70,12 +98,9 @@ class Dashboard extends Component
             
             // Table & Chart Data
             'fiscalPerformance'   => $fiscalPerformance,
-            'chartData'           => json_encode($fiscalPerformance), // Ready for JS integration
+            'chartData'           => json_encode($fiscalPerformance),
             
-            'topPerformingMdas'   => Mda::withSum(['releases' => fn($q) => $q->whereHas('subhead.category', fn($cat) => $cat->whereIn('type', $spendingCategories))], 'amount')
-                                            ->orderBy('releases_sum_amount', 'desc')
-                                            ->take(5)
-                                            ->get(),
+            'topPerformingMdas'   => $topPerformingMdas,
         ])->layout('layouts.app');
     }
 }

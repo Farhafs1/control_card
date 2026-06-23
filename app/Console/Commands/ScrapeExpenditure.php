@@ -21,7 +21,7 @@ class ScrapeExpenditure extends Command
                             {--limit=0 : Maximum number of records to process (0 = no limit)}
                             {--from= : Start date for manual scrape (Y-m-d)}
                             {--to= : End date for manual scrape (Y-m-d)}
-                            {--headless=true : Run browser in headless mode}
+                            {--headless=false : Run browser in headless mode}
                             {--timeout=300 : Default timeout in seconds}
                             {--batch-size=50 : Number of records to process before memory cleanup}';
 
@@ -108,7 +108,7 @@ class ScrapeExpenditure extends Command
             $this->driver->get('https://kteb.katsinastate.gov.ng/login');
             $this->info("Page title is: " . $this->driver->getTitle());
             
-            $this->driver->wait(30)->until(
+            $this->driver->wait(40)->until(
                 WebDriverExpectedCondition::visibilityOfElementLocated(WebDriverBy::name('username'))
             );
             
@@ -116,7 +116,7 @@ class ScrapeExpenditure extends Command
             $this->driver->findElement(WebDriverBy::name('username'))->sendKeys($user);
             $this->driver->findElement(WebDriverBy::name('password'))->sendKeys($pass);
             
-            sleep(1); 
+            sleep(15); 
 
             $this->info("Clicking Sign in...");
             try {
@@ -170,10 +170,10 @@ class ScrapeExpenditure extends Command
                 $this->confirm('Press Enter when the table is ready for capture', true);
             }
 
-            // $this->info("🛑 PAUSED: Set your filters in Chrome.");
-            // $this->confirm("Press Enter when the table is ready", true);
+            $this->info("🛑 PAUSED: Set your filters in Chrome.");
+            $this->confirm("Press Enter when the table is ready", true);
             
-            // sleep(2);
+            sleep(2);
             
             // Capture table snapshot ONCE (prevents infinite loop)
             $referenceChecklist = $this->captureTableSnapshot($startLimit, $endLimit, $isManual);
