@@ -62,19 +62,17 @@ class Dashboard extends Component
             'mdas.mda_code',
             DB::raw('COALESCE(SUM(releases.amount), 0) as total_released')
         )
-        ->leftJoin('releases', function($join) {
-            $join->on('mdas.id', '=', 'releases.mda_id')
-                 ->whereHas('subhead.category', function($q) {
-                     $q->whereIn('type', ['Personnel', 'Overhead', 'Capital']);
-                 });
-        })
+        ->leftJoin('releases', 'mdas.id', '=', 'releases.mda_id')
+        ->leftJoin('subheads', 'releases.subhead_id', '=', 'subheads.id')
+        ->leftJoin('categories', 'subheads.category_id', '=', 'categories.id')
         ->where('mdas.is_active', true)
+        // Apply the category filter here instead of inside the Join closure
+        ->whereIn('categories.type', ['Personnel', 'Overhead', 'Capital'])
         ->groupBy('mdas.id', 'mdas.name', 'mdas.mda_code')
         ->orderBy('total_released', 'desc')
         ->limit(5)
         ->get()
         ->map(function ($mda) {
-            // Normalize the property names for consistent access in blade
             return (object) [
                 'id' => $mda->id,
                 'name' => $mda->name,
@@ -82,7 +80,6 @@ class Dashboard extends Component
                 'releases_sum_amount' => (float) $mda->total_released,
             ];
         });
-
         return view('livewire.analyst.dashboard', [
             // Revenue (Inflow)
             'revenueTotal'        => $revenueTotal,
